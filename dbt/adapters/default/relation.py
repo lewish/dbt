@@ -181,6 +181,9 @@ class DefaultRelation(APIObject):
     def __repr__(self):
         return "<{} {}>".format(self.__class__.__name__, self.render())
 
+    def __hash__(self):
+        return hash(self.render())
+
     def __str__(self):
         return self.render()
 
