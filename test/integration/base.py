@@ -246,17 +246,24 @@ class DBTIntegrationTest(unittest.TestCase):
         except:
             os.rename("dbt_modules", "dbt_modules-{}".format(time.time()))
 
+        adapter = get_adapter(self.profile)
+
         if self.adapter_type == 'bigquery':
-            adapter = get_adapter(self.profile)
             adapter.drop_schema(self.profile, self.unique_schema(), '__test')
         else:
+<<<<<<< HEAD
             self.run_sql('DROP SCHEMA IF EXISTS {} CASCADE'.format(self.unique_schema()))
+=======
+            self.run_sql('DROP SCHEMA IF EXISTS "{}" CASCADE'
+                         .format(self.unique_schema()))
+>>>>>>> d966ec28aae4cc70b7da409ae708cf29ff3d52cd
             self.handle.close()
-
 
         # hack for BQ -- TODO
         if hasattr(self.handle, 'close'):
             self.handle.close()
+
+        adapter.cleanup_connections()
 
     @property
     def project_config(self):

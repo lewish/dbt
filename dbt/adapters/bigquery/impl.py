@@ -166,6 +166,15 @@ class BigQueryAdapter(PostgresAdapter):
         return result
 
     @classmethod
+    def close(cls, connection):
+        if dbt.flags.STRICT_MODE:
+            validate_connection(connection)
+
+        connection['state'] = 'closed'
+
+        return connection
+
+    @classmethod
     def list_relations(cls, profile, schema, model_name=None):
         connection = cls.get_connection(profile, model_name)
         credentials = connection.get('credentials', {})
