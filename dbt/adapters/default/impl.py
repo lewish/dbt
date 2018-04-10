@@ -5,7 +5,6 @@ import agate
 
 from contextlib import contextmanager
 
-import dbt.deprecations
 import dbt.exceptions
 import dbt.flags
 import dbt.schema
@@ -96,18 +95,17 @@ class DefaultAdapter(object):
 
     @classmethod
     def query_for_existing(cls, profile, schemas, model_name=None):
-        dbt.deprecations.warn('relations-api',
-                              fn='query_for_existing',
-                              model=model_name)
-
         if not isinstance(schemas, (list, tuple)):
             schemas = [schemas]
 
-        all_relations = cls.list_relations(profile, model_name)
+        all_relations = []
+
+        for schema in schemas:
+            all_relations.extend(
+                cls.list_relations(profile, schema, model_name))
 
         return {relation.identifier: relation.type
-                for relation in all_relations
-                if relation.schema in schemas}
+                for relation in all_relations}
 
     @classmethod
     def get_existing_schemas(cls, profile, model_name=None):
@@ -157,10 +155,6 @@ class DefaultAdapter(object):
 
     @classmethod
     def drop(cls, profile, schema, relation, relation_type, model_name=None):
-        dbt.deprecations.warn('relations-api',
-                              fn='drop',
-                              model=model_name)
-
         identifier = relation
         relation = cls.Relation.create(
             schema=schema,
@@ -182,10 +176,6 @@ class DefaultAdapter(object):
 
     @classmethod
     def truncate(cls, profile, schema, table, model_name=None):
-        dbt.deprecations.warn('relations-api',
-                              fn='truncate',
-                              model=model_name)
-
         relation = cls.Relation.create(
             schema=schema,
             identifier=table,
@@ -201,10 +191,6 @@ class DefaultAdapter(object):
 
     @classmethod
     def rename(cls, profile, schema, from_name, to_name, model_name=None):
-        dbt.deprecations.warn('relations-api',
-                              fn='rename',
-                              model=model_name)
-
         return cls.rename_relation(
             profile,
             from_relation=cls.Relation.create(
@@ -327,20 +313,25 @@ class DefaultAdapter(object):
     # RELATIONS
     ###
     @classmethod
-    def list_relations(cls, profile, model_name=None):
+    def list_relations(cls, profile, schema, model_name=None):
         raise dbt.exceptions.NotImplementedException(
             '`list_relations` is not implemented for this adapter!')
 
     @classmethod
-    def get_relation(cls, profile, relations_list=None,
+    def get_relation(cls, profile, schema=None, relations_list=None,
                      model_name=None, **kwargs):
+        if schema is None and relations_list is None:
+            raise dbt.exceptions.RuntimeException(
+                'get_relation needs either a schema to query, or a list '
+                'of relations to use')
+
         if relations_list is None:
-            relations_list = cls.list_relations(profile, model_name)
+            relations_list = cls.list_relations(profile, schema, model_name)
 
         matches = []
 
         for relation in relations_list:
-            if relation.matches(**kwargs):
+            if relation.matches(schema=schema, **kwargs):
                 matches.append(relation)
 
         if len(matches) > 1:
@@ -351,11 +342,6 @@ class DefaultAdapter(object):
             return matches[0]
 
         return None
-
-    @classmethod
-    def reload_relation(cls, profile, relation, model_name=None):
-        return cls.get_relation(profile, model_name=model_name,
-                                **filter_null_values(relation.path))
 
     ###
     # SANE ANSI SQL DEFAULTS
@@ -713,10 +699,6 @@ class DefaultAdapter(object):
 
     @classmethod
     def already_exists(cls, profile, schema, table, model_name=None):
-        dbt.deprecations.warn('relations-api',
-                              fn='already_exists',
-                              model=model_name)
-
         relation = cls.get_relation(profile, schema=schema, identifier=table)
         return relation is not None
 
@@ -726,10 +708,6 @@ class DefaultAdapter(object):
 
     @classmethod
     def quote_schema_and_table(cls, profile, schema, table, model_name=None):
-        dbt.deprecations.warn('relations-api',
-                              fn='quote_schema_and_table',
-                              model=model_name)
-
         return '{}.{}'.format(cls.quote(schema),
                               cls.quote(table))
 

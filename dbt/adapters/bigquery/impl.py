@@ -166,24 +166,6 @@ class BigQueryAdapter(PostgresAdapter):
         return result
 
     @classmethod
-    def query_for_existing(cls, profile, schemas, model_name=None):
-        dbt.deprecations.warn('relations-api',
-                              fn='query_for_existing',
-                              model=model_name)
-
-        if not isinstance(schemas, (list, tuple)):
-            schemas = [schemas]
-
-        all_relations = []
-
-        for schema in schemas:
-            all_relations.extend(cls.list_relations(
-                profile, schema, model_name))
-
-        return {relation.identifier: relation.type
-                for relation in all_relations}
-
-    @classmethod
     def list_relations(cls, profile, schema, model_name=None):
         connection = cls.get_connection(profile, model_name)
         credentials = connection.get('credentials', {})
@@ -484,10 +466,6 @@ class BigQueryAdapter(PostgresAdapter):
 
     @classmethod
     def quote_schema_and_table(cls, profile, schema, table, model_name=None):
-        dbt.deprecations.warn('relations-api',
-                              fn='quote_schema_and_table',
-                              model=model_name)
-
         return cls.render_relation(profile,
                                    cls.quote(schema),
                                    cls.quote(table))

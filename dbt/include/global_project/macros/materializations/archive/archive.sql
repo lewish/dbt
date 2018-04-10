@@ -72,18 +72,15 @@
 
 {% materialization archive, default %}
   {%- set config = model['config'] -%}
-  {%- set existing_relations = adapter.list_relations() -%}
 
   {%- set target_schema = config.get('target_schema') -%}
   {%- set target_table = config.get('target_table') -%}
 
   {%- set source_relation = adapter.get_relation(
-      relations_list=existing_relations,
       schema=config.get('source_schema'),
       identifier=config.get('source_table')) -%}
 
   {%- set target_relation = adapter.get_relation(
-      relations_list=existing_relations,
       schema=target_schema,
       identifier=target_table) -%}
 

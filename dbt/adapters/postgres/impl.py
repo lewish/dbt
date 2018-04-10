@@ -115,12 +115,14 @@ class PostgresAdapter(dbt.adapters.default.DefaultAdapter):
         return connection, cursor
 
     @classmethod
-    def list_relations(cls, profile, model_name=None):
+    def list_relations(cls, profile, schema, model_name=None):
         sql = """
         select tablename as name, schemaname as schema, 'table' as type from pg_tables
+        where schemaname = '{schema}'
         union all
         select viewname as name, schemaname as schema, 'view' as type from pg_views
-        """.strip()  # noqa
+        where schemaname = '{schema}'
+        """.format(schema=schema).strip()  # noqa
 
         connection, cursor = cls.add_query(profile, sql, model_name,
                                            auto_begin=False)
@@ -129,10 +131,10 @@ class PostgresAdapter(dbt.adapters.default.DefaultAdapter):
 
         return [cls.Relation.create(
             database=profile.get('dbname'),
-            schema=schema,
+            schema=_schema,
             identifier=name,
             type=type)
-                for (name, schema, type) in results]
+                for (name, _schema, type) in results]
 
     @classmethod
     def get_existing_schemas(cls, profile, model_name=None):
