@@ -251,12 +251,8 @@ class DBTIntegrationTest(unittest.TestCase):
         if self.adapter_type == 'bigquery':
             adapter.drop_schema(self.profile, self.unique_schema(), '__test')
         else:
-<<<<<<< HEAD
-            self.run_sql('DROP SCHEMA IF EXISTS {} CASCADE'.format(self.unique_schema()))
-=======
-            self.run_sql('DROP SCHEMA IF EXISTS "{}" CASCADE'
+            self.run_sql('DROP SCHEMA IF EXISTS {} CASCADE'
                          .format(self.unique_schema()))
->>>>>>> d966ec28aae4cc70b7da409ae708cf29ff3d52cd
             self.handle.close()
 
         # hack for BQ -- TODO
