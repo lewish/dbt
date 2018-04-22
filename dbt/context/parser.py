@@ -20,7 +20,7 @@ def ref(model, project, profile, flat_graph):
         adapter = get_adapter(profile)
         return adapter.Relation.create_from_node(
             profile, model,
-            quote_policy=project.get('quoting'))
+            quote_policy=project.get('quoting', {}))
 
     return ref
 

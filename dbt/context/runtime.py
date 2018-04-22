@@ -59,7 +59,7 @@ def ref(model, project, profile, flat_graph):
         else:
             return adapter.Relation.create_from_node(
                 profile, target_model,
-                quote_policy=project.get('quoting'))
+                quote_policy=project.get('quoting', {}))
 
     return do_ref
 

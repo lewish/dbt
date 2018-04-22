@@ -91,8 +91,8 @@ class Project(object):
         if self.cfg.get('models') is None:
             self.cfg['models'] = {}
 
-        if self.cfg['models'].get('quoting') is None:
-            self.cfg['models']['quoting'] = {}
+        if self.cfg.get('quoting') is None:
+            self.cfg['quoting'] = {}
 
         if self.cfg['models'].get('vars') is None:
             self.cfg['models']['vars'] = {}
