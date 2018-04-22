@@ -91,6 +91,9 @@ class Project(object):
         if self.cfg.get('models') is None:
             self.cfg['models'] = {}
 
+        if self.cfg['models'].get('quoting') is None:
+            self.cfg['models']['quoting'] = {}
+
         if self.cfg['models'].get('vars') is None:
             self.cfg['models']['vars'] = {}
 
@@ -222,6 +225,21 @@ class Project(object):
                 raise DbtProjectError(
                     "Expected project configuration '{}' was not supplied"
                     .format('.'.join(e.path)), self)
+
+    def log_warnings(self):
+        target_cfg = self.run_environment()
+        db_type = target_cfg.get('type')
+
+        if db_type == 'snowflake' and self.cfg \
+                                          .get('quoting', {}) \
+                                          .get('identifier') is None:
+            logger.warn(
+                'You are using Snowflake, but you did not specify a '
+                'quoting strategy for your identifiers. Quoting '
+                'behavior for Snowflake will change in a future release, '
+                'so it is recommended that you define this explicitly. '
+                '\n\n'
+                'For more information, see ADD LINK')
 
     def hashed_name(self):
         if self.cfg.get("name", None) is None:

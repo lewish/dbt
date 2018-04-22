@@ -127,6 +127,10 @@ class SnowflakeAdapter(PostgresAdapter):
             database=profile.get('database'),
             schema=_schema,
             identifier=name,
+            quote_policy={
+                'schema': True,
+                'identifier': True
+            },
             type=relation_type_lookup.get(type))
                 for (name, _schema, type) in results]
 

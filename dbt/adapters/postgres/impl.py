@@ -118,10 +118,10 @@ class PostgresAdapter(dbt.adapters.default.DefaultAdapter):
     def list_relations(cls, profile, schema, model_name=None):
         sql = """
         select tablename as name, schemaname as schema, 'table' as type from pg_tables
-        where schemaname = '{schema}'
+        where schemaname ilike '{schema}'
         union all
         select viewname as name, schemaname as schema, 'view' as type from pg_views
-        where schemaname = '{schema}'
+        where schemaname ilike '{schema}'
         """.format(schema=schema).strip()  # noqa
 
         connection, cursor = cls.add_query(profile, sql, model_name,
@@ -133,6 +133,10 @@ class PostgresAdapter(dbt.adapters.default.DefaultAdapter):
             database=profile.get('dbname'),
             schema=_schema,
             identifier=name,
+            quote_policy={
+                'schema': True,
+                'identifier': True
+            },
             type=type)
                 for (name, _schema, type) in results]
 

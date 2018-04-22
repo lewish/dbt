@@ -281,6 +281,18 @@ def get_this_relation(db_wrapper, profile, model):
         profile, model, table_name=table_name)
 
 
+def create_relation(relation_type, quoting_config):
+
+    class RelationWithContext(relation_type):
+        @classmethod
+        def create(cls, *args, **kwargs):
+            return relation_type.create(*args,
+                                        quote_policy=quoting_config,
+                                        **kwargs)
+
+    return RelationWithContext
+
+
 def generate(model, project, flat_graph, provider=None):
     """
     Not meant to be called directly. Call with either:
@@ -310,7 +322,8 @@ def generate(model, project, flat_graph, provider=None):
     context = dbt.utils.merge(context, {
         "adapter": db_wrapper,
         "api": {
-            "Relation": adapter.Relation,
+            "Relation": create_relation(adapter.Relation,
+                                        project.get('quoting')),
             "Column": adapter.Column,
         },
         "column": adapter.Column,

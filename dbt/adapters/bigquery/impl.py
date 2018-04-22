@@ -193,6 +193,10 @@ class BigQueryAdapter(PostgresAdapter):
             project=credentials.get('project'),
             schema=schema,
             identifier=table.table_id,
+            quote_policy={
+                'schema': True,
+                'identifier': True
+            },
             type=relation_types.get(table.table_type))
                 for table in all_tables]
 

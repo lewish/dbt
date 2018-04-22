@@ -57,7 +57,9 @@ def ref(model, project, profile, flat_graph):
                 identifier=add_ephemeral_model_prefix(
                     target_model_name)).quote(identifier=False)
         else:
-            return adapter.Relation.create_from_node(profile, target_model)
+            return adapter.Relation.create_from_node(
+                profile, target_model,
+                quote_policy=project.get('quoting'))
 
     return do_ref
 

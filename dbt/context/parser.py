@@ -18,7 +18,9 @@ def ref(model, project, profile, flat_graph):
             dbt.exceptions.ref_invalid_args(model, args)
 
         adapter = get_adapter(profile)
-        return adapter.Relation.create_from_node(profile, model)
+        return adapter.Relation.create_from_node(
+            profile, model,
+            quote_policy=project.get('quoting'))
 
     return ref
 

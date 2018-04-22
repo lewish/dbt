@@ -27,6 +27,7 @@ DBTConfigKeys = [
     'post-hook',
     'vars',
     'bind',
+    'quoting',
 ]
 
 
