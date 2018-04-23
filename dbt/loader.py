@@ -84,16 +84,6 @@ class ModelLoader(ResourceLoader):
 
             to_return.update(project_loaded)
 
-        # Check for duplicate model names
-        names_models = {}
-        for model, attribs in to_return.items():
-            name = attribs['name']
-            existing_name = names_models.get(name)
-            if existing_name is not None:
-                raise dbt.exceptions.CompilationException(
-                    'Found models with the same name: \n- %s\n- %s' % (
-                        model, existing_name))
-            names_models[name] = model
         return to_return
 
     @classmethod
@@ -181,6 +171,21 @@ class RunHookLoader(ResourceLoader):
                                                    macros)
 
 
+class SeedLoader(ResourceLoader):
+
+    @classmethod
+    def load_project(cls, root_project, all_projects, project, project_name,
+                     macros):
+        return dbt.parser.load_and_parse_seeds(
+            package_name=project_name,
+            root_project=root_project,
+            all_projects=all_projects,
+            root_dir=project.get('project-root'),
+            relative_dirs=project.get('data-paths', []),
+            resource_type=NodeType.Seed,
+            macros=macros)
+
+
 # node loaders
 GraphLoader.register(ModelLoader, 'nodes')
 GraphLoader.register(AnalysisLoader, 'nodes')
@@ -188,3 +193,4 @@ GraphLoader.register(SchemaTestLoader, 'nodes')
 GraphLoader.register(DataTestLoader, 'nodes')
 GraphLoader.register(RunHookLoader, 'nodes')
 GraphLoader.register(ArchiveLoader, 'nodes')
+GraphLoader.register(SeedLoader, 'nodes')

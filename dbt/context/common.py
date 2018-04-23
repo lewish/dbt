@@ -7,6 +7,7 @@ from dbt.adapters.factory import get_adapter
 from dbt.compat import basestring, to_string
 
 import dbt.clients.jinja
+import dbt.clients.agate_helper
 import dbt.flags
 import dbt.schema
 import dbt.tracking
@@ -15,6 +16,12 @@ import dbt.utils
 import dbt.hooks
 
 from dbt.logger import GLOBAL_LOGGER as logger  # noqa
+
+
+# These modules are added to the context. Consider alternative
+# approaches which will extend well to potentially many modules
+import pytz
+import datetime
 
 
 class DatabaseWrapper(object):
@@ -124,10 +131,14 @@ def _env_var(var, default=None):
 
 
 def _store_result(sql_results):
-    def call(name, status, data=[]):
+    def call(name, status, agate_table=None):
+        if agate_table is None:
+            agate_table = dbt.clients.agate_helper.empty_table()
+
         sql_results[name] = dbt.utils.AttrDict({
             'status': status,
-            'data': data
+            'data': dbt.clients.agate_helper.as_matrix(agate_table),
+            'table': agate_table
         })
         return ''
 
@@ -248,6 +259,15 @@ def tojson(value, default=None):
         return default
 
 
+def try_or_compiler_error(model):
+    def impl(message_if_exception, func, *args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            dbt.exceptions.raise_compiler_error(message_if_exception, model)
+    return impl
+
+
 def _return(value):
     raise dbt.exceptions.MacroReturn(value)
 
@@ -280,7 +300,7 @@ def generate(model, project, flat_graph, provider=None):
 
     context = dbt.utils.merge(context, {
         "adapter": db_wrapper,
-        "column": dbt.schema.Column,
+        "column": adapter.Column,
         "config": provider.Config(model),
         "env_var": _env_var,
         "exceptions": dbt.exceptions,
@@ -291,6 +311,7 @@ def generate(model, project, flat_graph, provider=None):
         "model": model,
         "modules": {
             "pytz": pytz,
+            "datetime": datetime
         },
         "post_hooks": post_hooks,
         "pre_hooks": pre_hooks,
@@ -302,7 +323,8 @@ def generate(model, project, flat_graph, provider=None):
         "fromjson": fromjson,
         "tojson": tojson,
         "target": target,
-        "this": dbt.utils.Relation(profile, adapter, model, use_temp=True)
+        "this": dbt.utils.Relation(profile, adapter, model, use_temp=True),
+        "try_or_compiler_error": try_or_compiler_error(model)
     })
 
     context = _add_tracking(context)

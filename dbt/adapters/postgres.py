@@ -5,7 +5,9 @@ from contextlib import contextmanager
 import dbt.adapters.default
 import dbt.compat
 import dbt.exceptions
+import agate
 
+from dbt.utils import chunks
 from dbt.logger import GLOBAL_LOGGER as logger
 
 
@@ -23,7 +25,13 @@ class PostgresAdapter(dbt.adapters.default.DefaultAdapter):
         except psycopg2.DatabaseError as e:
             logger.debug('Postgres error: {}'.format(str(e)))
 
-            cls.release_connection(profile, connection_name)
+            try:
+                # attempt to release the connection
+                cls.release_connection(profile, connection_name)
+            except psycopg2.Error:
+                logger.debug("Failed to release connection!")
+                pass
+
             raise dbt.exceptions.DatabaseException(
                 dbt.compat.to_string(e).strip())
 
@@ -165,3 +173,76 @@ class PostgresAdapter(dbt.adapters.default.DefaultAdapter):
         res = cursor.fetchone()
 
         logger.debug("Cancel query '{}': {}".format(connection_name, res))
+
+    @classmethod
+    def convert_text_type(cls, agate_table, col_idx):
+        return "text"
+
+    @classmethod
+    def convert_number_type(cls, agate_table, col_idx):
+        decimals = agate_table.aggregate(agate.MaxPrecision(col_idx))
+        return "float8" if decimals else "integer"
+
+    @classmethod
+    def convert_boolean_type(cls, agate_table, col_idx):
+        return "boolean"
+
+    @classmethod
+    def convert_datetime_type(cls, agate_table, col_idx):
+        return "timestamp without time zone"
+
+    @classmethod
+    def convert_date_type(cls, agate_table, col_idx):
+        return "date"
+
+    @classmethod
+    def convert_time_type(cls, agate_table, col_idx):
+        return "time"
+
+    @classmethod
+    def create_csv_table(cls, profile, schema, table_name, agate_table,
+                         column_override):
+        col_sqls = []
+        for idx, col_name in enumerate(agate_table.column_names):
+            inferred_type = cls.convert_agate_type(agate_table, idx)
+            type_ = column_override.get(col_name, inferred_type)
+            col_sqls.append('{} {}'.format(col_name, type_))
+        sql = 'create table "{}"."{}" ({})'.format(schema, table_name,
+                                                   ", ".join(col_sqls))
+        return cls.add_query(profile, sql)
+
+    @classmethod
+    def reset_csv_table(cls, profile, schema, table_name, agate_table,
+                        column_override, full_refresh=False):
+        if full_refresh:
+            cls.drop_table(profile, schema, table_name, None)
+            cls.create_csv_table(profile, schema, table_name, agate_table,
+                                 column_override)
+        else:
+            cls.truncate(profile, schema, table_name)
+
+    @classmethod
+    def load_csv_rows(cls, profile, schema, table_name, agate_table,
+                      column_override):
+        bindings = []
+        placeholders = []
+        cols_sql = ", ".join(c for c in agate_table.column_names)
+
+        for chunk in chunks(agate_table.rows, 10000):
+            bindings = []
+            placeholders = []
+
+            for row in chunk:
+                bindings += row
+                placeholders.append("({})".format(
+                    ", ".join("%s" for _ in agate_table.column_names)))
+
+                sql = ('insert into {}.{} ({}) values {}'
+                       .format(cls.quote(schema),
+                               cls.quote(table_name),
+                               cols_sql,
+                               ",\n".join(placeholders)))
+
+            cls.add_query(profile, sql,
+                          bindings=bindings,
+                          abridge_sql_log=True)

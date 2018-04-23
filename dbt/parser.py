@@ -13,6 +13,7 @@ import dbt.hooks
 import jinja2.runtime
 import dbt.clients.jinja
 import dbt.clients.yaml_helper
+import dbt.clients.agate_helper
 
 import dbt.context.parser
 
@@ -38,7 +39,7 @@ def resolve_ref(flat_graph, target_model_name, target_model_package,
                 current_project, node_package):
 
     if target_model_package is not None:
-        return dbt.utils.find_model_by_name(
+        return dbt.utils.find_refable_by_name(
             flat_graph,
             target_model_name,
             target_model_package)
@@ -46,7 +47,7 @@ def resolve_ref(flat_graph, target_model_name, target_model_package,
     target_model = None
 
     # first pass: look for models in the current_project
-    target_model = dbt.utils.find_model_by_name(
+    target_model = dbt.utils.find_refable_by_name(
         flat_graph,
         target_model_name,
         current_project)
@@ -55,7 +56,7 @@ def resolve_ref(flat_graph, target_model_name, target_model_package,
         return target_model
 
     # second pass: look for models in the node's package
-    target_model = dbt.utils.find_model_by_name(
+    target_model = dbt.utils.find_refable_by_name(
         flat_graph,
         target_model_name,
         node_package)
@@ -66,7 +67,7 @@ def resolve_ref(flat_graph, target_model_name, target_model_package,
     # final pass: look for models in any package
     # todo: exclude the packages we have already searched. overriding
     # a package model in another package doesn't necessarily work atm
-    return dbt.utils.find_model_by_name(
+    return dbt.utils.find_refable_by_name(
         flat_graph,
         target_model_name,
         None)
@@ -200,10 +201,13 @@ def parse_node(node, node_path, root_project_config, package_project_config,
         fqn = get_fqn(node.get('path'), package_project_config, fqn_extra)
 
     config = dbt.model.SourceConfig(
-        root_project_config, package_project_config, fqn)
+        root_project_config,
+        package_project_config,
+        fqn,
+        node['resource_type'])
 
     node['unique_id'] = node_path
-    node['empty'] = (len(node.get('raw_sql').strip()) == 0)
+    node['empty'] = ('raw_sql' in node and len(node['raw_sql'].strip()) == 0)
     node['fqn'] = fqn
     node['tags'] = tags
     node['config_reference'] = config
@@ -284,10 +288,8 @@ def parse_sql_nodes(nodes, root_project, projects, tags=None, macros=None):
         # Check for duplicate model names
         existing_node = to_return.get(node_path)
         if existing_node is not None:
-            raise dbt.exceptions.CompilationException(
-                'Found models with the same name:\n- %s\n- %s' % (
-                    existing_node.get('original_file_path'),
-                    node.get('original_file_path')))
+            dbt.exceptions.raise_duplicate_resource_name(
+                    existing_node, node_parsed)
 
         to_return[node_path] = node_parsed
 
@@ -447,6 +449,36 @@ def load_and_parse_macros(package_name, root_project, all_projects, root_dir,
     return result
 
 
+def get_parsed_schema_test(test_node, test_type, model_name, config,
+                           root_project, projects, macros):
+
+    package_name = test_node.get('package_name')
+    test_namespace = None
+    original_test_type = test_type
+    split = test_type.split('.')
+
+    if len(split) > 1:
+        test_type = split[1]
+        package_name = split[0]
+        test_namespace = package_name
+
+    source_package = projects.get(package_name)
+    if source_package is None:
+        desc = '"{}" test on model "{}"'.format(original_test_type, model_name)
+        dbt.exceptions.raise_dep_not_found(test_node, desc, test_namespace)
+
+    return parse_schema_test(
+        test_node,
+        model_name,
+        config,
+        test_namespace,
+        test_type,
+        root_project,
+        source_package,
+        all_projects=projects,
+        macros=macros)
+
+
 def parse_schema_tests(tests, root_project, projects, macros=None):
     to_return = {}
 
@@ -468,7 +500,7 @@ def parse_schema_tests(tests, root_project, projects, macros=None):
         for model_name, test_spec in test_yml.items():
             if test_spec is None or test_spec.get('constraints') is None:
                 test_path = test.get('original_file_path', '<unknown>')
-                logger.warn(no_tests_warning.format(model_name, test_path))
+                logger.warning(no_tests_warning.format(model_name, test_path))
                 continue
 
             for test_type, configs in test_spec.get('constraints', {}).items():
@@ -485,25 +517,9 @@ def parse_schema_tests(tests, root_project, projects, macros=None):
                     continue
 
                 for config in configs:
-                    package_name = test.get('package_name')
-                    test_namespace = None
-                    split = test_type.split('.')
-
-                    if len(split) > 1:
-                        test_type = split[1]
-                        package_name = split[0]
-                        test_namespace = package_name
-
-                    to_add = parse_schema_test(
-                        test,
-                        model_name,
-                        config,
-                        test_namespace,
-                        test_type,
-                        root_project,
-                        projects.get(package_name),
-                        all_projects=projects,
-                        macros=macros)
+                    to_add = get_parsed_schema_test(
+                                test, test_type, model_name, config,
+                                root_project, projects, macros)
 
                     if to_add is not None:
                         to_return[to_add.get('unique_id')] = to_add
@@ -697,3 +713,54 @@ def parse_archives_from_project(project):
             })
 
     return archives
+
+
+def parse_seed_file(file_match, root_dir, package_name):
+    abspath = file_match['absolute_path']
+    logger.debug("Parsing {}".format(abspath))
+    to_return = {}
+    table_name = os.path.basename(abspath)[:-4]
+    node = {
+        'unique_id': get_path(NodeType.Seed, package_name, table_name),
+        'path': file_match['relative_path'],
+        'name': table_name,
+        'root_path': root_dir,
+        'resource_type': NodeType.Seed,
+        # Give this raw_sql so it conforms to the node spec,
+        # use dummy text so it doesn't look like an empty node
+        'raw_sql': '-- csv --',
+        'package_name': package_name,
+        'depends_on': {'nodes': []},
+        'original_file_path': os.path.join(file_match.get('searched_path'),
+                                           file_match.get('relative_path')),
+    }
+    try:
+        table = dbt.clients.agate_helper.from_csv(abspath)
+    except ValueError as e:
+        dbt.exceptions.raise_compiler_error(str(e), node)
+    table.original_abspath = abspath
+    node['agate_table'] = table
+    return node
+
+
+def load_and_parse_seeds(package_name, root_project, all_projects, root_dir,
+                         relative_dirs, resource_type, tags=None, macros=None):
+    extension = "[!.#~]*.csv"
+    if dbt.flags.STRICT_MODE:
+        dbt.contracts.project.validate_list(all_projects)
+    file_matches = dbt.clients.system.find_matching(
+        root_dir,
+        relative_dirs,
+        extension)
+    result = {}
+    for file_match in file_matches:
+        node = parse_seed_file(file_match, root_dir, package_name)
+        node_path = node['unique_id']
+        parsed = parse_node(node, node_path, root_project,
+                            all_projects.get(package_name),
+                            all_projects, tags=tags, macros=macros)
+        # parsed['empty'] = False
+        result[node_path] = parsed
+
+    dbt.contracts.graph.parsed.validate_nodes(result)
+    return result

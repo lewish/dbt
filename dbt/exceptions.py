@@ -65,9 +65,13 @@ class RuntimeException(RuntimeError, Exception):
         if self.node is not None:
             node_string = " in {}".format(self.node_to_string(self.node))
 
+        if hasattr(self.msg, 'split'):
+            split_msg = self.msg.split("\n")
+        else:
+            split_msg = basestring(self.msg).split("\n")
+
         lines = ["{}{}".format(self.type + ' Error',
-                               node_string)] + \
-            self.msg.split("\n")
+                               node_string)] + split_msg
 
         lines += self.process_stack()
 
@@ -101,6 +105,23 @@ class ValidationException(RuntimeException):
     pass
 
 
+class ParsingException(Exception):
+    pass
+
+
+class DependencyException(Exception):
+    pass
+
+
+class SemverException(Exception):
+    def __init__(self, msg=None):
+        self.msg = msg
+
+
+class VersionsNotCompatibleException(SemverException):
+    pass
+
+
 class NotImplementedException(Exception):
     pass
 
@@ -118,6 +139,10 @@ def raise_compiler_error(msg, node=None):
 
 def raise_database_error(msg, node=None):
     raise DatabaseException(msg, node)
+
+
+def raise_dependency_error(msg):
+    raise DependencyException(msg)
 
 
 def ref_invalid_args(model, args):
@@ -229,7 +254,54 @@ def missing_relation(relation_name, model=None):
         model)
 
 
+def package_not_found(package_name):
+    raise_dependency_error(
+        "Package {} was not found in the package index".format(package_name))
+
+
+def package_version_not_found(package_name, version_range, available_versions):
+    base_msg = ('Could not find a matching version for package {}\n'
+                '  Requested range: {}\n'
+                '  Available versions: {}')
+    raise_dependency_error(base_msg.format(package_name,
+                                           version_range,
+                                           available_versions))
+
+
 def invalid_materialization_argument(name, argument):
     raise_compiler_error(
         "materialization '{}' received unknown argument '{}'."
         .format(name, argument))
+
+
+def system_error(operation_name):
+    raise_compiler_error(
+        "dbt encountered an error when attempting to {}. "
+        "If this error persists, please create an issue at: \n\n"
+        "https://github.com/fishtown-analytics/dbt"
+        .format(operation_name))
+
+
+class RegistryException(Exception):
+    pass
+
+
+def raise_dep_not_found(node, node_description, required_pkg):
+    raise_compiler_error(
+        'Error while parsing {}.\nThe required package "{}" was not found. '
+        'Is the package installed?\nHint: You may need to run '
+        '`dbt deps`.'.format(node_description, required_pkg), node=node)
+
+
+def raise_duplicate_resource_name(node_1, node_2):
+    duped_name = node_1['name']
+
+    raise_compiler_error(
+        'dbt found two resources with the name "{}". Since these resources '
+        'have the same name,\ndbt will be unable to find the correct resource '
+        'when ref("{}") is used. To fix this,\nchange the name of one of '
+        'these resources:\n- {} ({})\n- {} ({})'.format(
+            duped_name,
+            duped_name,
+            node_1['unique_id'], node_1['original_file_path'],
+            node_2['unique_id'], node_2['original_file_path']))

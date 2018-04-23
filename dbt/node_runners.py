@@ -14,7 +14,6 @@ import dbt.schema
 import dbt.templates
 import dbt.writer
 
-import os
 import time
 
 
@@ -79,8 +78,8 @@ class BaseRunner(object):
         return False
 
     @classmethod
-    def is_model(cls, node):
-        return node.get('resource_type') == NodeType.Model
+    def is_refable(cls, node):
+        return node.get('resource_type') in NodeType.refable()
 
     @classmethod
     def is_ephemeral(cls, node):
@@ -88,7 +87,7 @@ class BaseRunner(object):
 
     @classmethod
     def is_ephemeral_model(cls, node):
-        return cls.is_model(node) and cls.is_ephemeral(node)
+        return cls.is_refable(node) and cls.is_ephemeral(node)
 
     def safe_run(self, flat_graph, existing):
         catchable_errors = (dbt.exceptions.CompilationException,
@@ -175,7 +174,7 @@ class BaseRunner(object):
     def get_model_schemas(cls, flat_graph):
         schemas = set()
         for node in flat_graph['nodes'].values():
-            if cls.is_model(node) and not cls.is_ephemeral(node):
+            if cls.is_refable(node) and not cls.is_ephemeral(node):
                 schemas.add(node['schema'])
 
         return schemas
@@ -213,14 +212,14 @@ class CompileRunner(BaseRunner):
         return RunModelResult(compiled_node)
 
     def compile(self, flat_graph):
-        return self.compile_node(self.adapter, self.project, self.node,
-                                 flat_graph)
+        return self._compile_node(self.adapter, self.project, self.node,
+                                  flat_graph)
 
     @classmethod
-    def compile_node(cls, adapter, project, node, flat_graph):
+    def _compile_node(cls, adapter, project, node, flat_graph):
         compiler = dbt.compilation.Compiler(project)
         node = compiler.compile_node(node, flat_graph)
-        node = cls.inject_runtime_config(adapter, project, node)
+        node = cls._inject_runtime_config(adapter, project, node)
 
         if(node['injected_sql'] is not None and
            not (dbt.utils.is_type(node, NodeType.Archive))):
@@ -238,20 +237,20 @@ class CompileRunner(BaseRunner):
         return node
 
     @classmethod
-    def inject_runtime_config(cls, adapter, project, node):
+    def _inject_runtime_config(cls, adapter, project, node):
         wrapped_sql = node.get('wrapped_sql')
-        context = cls.node_context(adapter, project, node)
+        context = cls._node_context(adapter, project, node)
         sql = dbt.clients.jinja.get_rendered(wrapped_sql, context)
         node['wrapped_sql'] = sql
         return node
 
     @classmethod
-    def node_context(cls, adapter, project, node):
+    def _node_context(cls, adapter, project, node):
         profile = project.run_environment()
 
         def call_get_columns_in_table(schema_name, table_name):
             return adapter.get_columns_in_table(
-                profile, schema_name, table_name, node.get('name'))
+                profile, schema_name, table_name, model_name=node.get('name'))
 
         def call_get_missing_columns(from_schema, from_table,
                                      to_schema, to_table):
@@ -271,6 +270,14 @@ class CompileRunner(BaseRunner):
             "already_exists": call_table_exists,
         }
 
+    @classmethod
+    def create_schemas(cls, project, adapter, flat_graph):
+        profile = project.run_environment()
+        required_schemas = cls.get_model_schemas(flat_graph)
+        existing_schemas = set(adapter.get_existing_schemas(profile))
+        for schema in (required_schemas - existing_schemas):
+            adapter.create_schema(profile, schema)
+
 
 class ModelRunner(CompileRunner):
 
@@ -284,41 +291,48 @@ class ModelRunner(CompileRunner):
         nodes = flat_graph.get('nodes', {}).values()
         hooks = get_nodes_by_tags(nodes, {hook_type}, NodeType.Operation)
 
-        # This will clear out an open transaction if there is one.
-        # on-run-* hooks should run outside of a transaction. This happens b/c
-        # psycopg2 automatically begins a transaction when a connection is
-        # created. TODO : Move transaction logic out of here, and implement
-        # a for-loop over these sql statements in jinja-land. Also, consider
-        # configuring psycopg2 (and other adapters?) to ensure that a
-        # transaction is only created if dbt initiates it.
-        conn_name = adapter.clear_transaction(profile)
-
         compiled_hooks = []
         for hook in hooks:
-            compiled = cls.compile_node(adapter, project, hook, flat_graph)
-            model_name = compiled.get('name')
+            model_name = hook.get('name')
+
+            # This will clear out an open transaction if there is one.
+            # on-run-* hooks should run outside of a transaction. This happens
+            # b/c psycopg2 automatically begins a transaction when a connection
+            # is created. TODO : Move transaction logic out of here, and
+            # implement a for-loop over these sql statements in jinja-land.
+            # Also, consider configuring psycopg2 (and other adapters?) to
+            # ensure that a transaction is only created if dbt initiates it.
+            adapter.clear_transaction(profile, model_name)
+            compiled = cls._compile_node(adapter, project, hook, flat_graph)
             statement = compiled['wrapped_sql']
 
             hook_index = hook.get('index', len(hooks))
             hook_dict = dbt.hooks.get_hook_dict(statement, index=hook_index)
             compiled_hooks.append(hook_dict)
+            adapter.release_connection(profile, model_name)
 
         ordered_hooks = sorted(compiled_hooks, key=lambda h: h.get('index', 0))
 
         for hook in ordered_hooks:
+            model_name = hook.get('name')
+
             if dbt.flags.STRICT_MODE:
                 dbt.contracts.graph.parsed.validate_hook(hook)
 
             sql = hook.get('sql', '')
-            adapter.execute_one(profile, sql, model_name=conn_name,
-                                auto_begin=False)
-            adapter.release_connection(profile, conn_name)
+
+            if len(sql.strip()) > 0:
+                adapter.execute_one(profile, sql, model_name=model_name,
+                                    auto_begin=False)
+
+                adapter.release_connection(profile, model_name)
 
     @classmethod
     def safe_run_hooks(cls, project, adapter, flat_graph, hook_type):
         try:
             cls.run_hooks(project, adapter, flat_graph, hook_type)
-        except dbt.exceptions.RuntimeException as e:
+
+        except dbt.exceptions.RuntimeException:
             logger.info("Database error while running {}".format(hook_type))
             raise
 
@@ -340,8 +354,8 @@ class ModelRunner(CompileRunner):
 
     @classmethod
     def before_run(cls, project, adapter, flat_graph):
-        cls.create_schemas(project, adapter, flat_graph)
         cls.safe_run_hooks(project, adapter, flat_graph, RunHookType.Start)
+        cls.create_schemas(project, adapter, flat_graph)
 
     @classmethod
     def print_results_line(cls, results, execution_time):
@@ -435,20 +449,20 @@ class TestRunner(CompileRunner):
                                         self.num_nodes)
 
     def execute_test(self, test):
-        res, rows = self.adapter.execute_and_fetch(
+        res, table = self.adapter.execute_and_fetch(
             self.profile,
             test.get('wrapped_sql'),
             test.get('name'),
             auto_begin=True)
 
-        num_rows = len(rows)
+        num_rows = len(table.rows)
         if num_rows > 1:
-            num_cols = len(rows[0])
+            num_cols = len(table.columns)
             raise RuntimeError(
                 "Bad test {name}: Returned {rows} rows and {cols} cols"
                 .format(name=test.get('name'), rows=num_rows, cols=num_cols))
 
-        return rows[0][0]
+        return table[0][0]
 
     def before_execute(self):
         self.print_start_line()
@@ -474,3 +488,46 @@ class ArchiveRunner(ModelRunner):
     def print_result_line(self, result):
         dbt.ui.printer.print_archive_result_line(result, self.node_index,
                                                  self.num_nodes)
+
+
+class SeedRunner(ModelRunner):
+
+    def describe_node(self):
+        schema_name = self.node.get('schema')
+        return "seed file {}.{}".format(schema_name, self.node["name"])
+
+    @classmethod
+    def before_run(cls, project, adapter, flat_graph):
+        cls.create_schemas(project, adapter, flat_graph)
+
+    def before_execute(self):
+        description = self.describe_node()
+        dbt.ui.printer.print_start_line(description, self.node_index,
+                                        self.num_nodes)
+
+    def execute(self, compiled_node, existing_, flat_graph):
+        schema = compiled_node["schema"]
+        table_name = compiled_node["name"]
+        table = compiled_node["agate_table"]
+
+        column_override = compiled_node['config'].get('column_types', {})
+        self.adapter.handle_csv_table(self.profile, schema, table_name, table,
+                                      column_override,
+                                      full_refresh=dbt.flags.FULL_REFRESH)
+
+        if dbt.flags.FULL_REFRESH:
+            status = 'CREATE {}'.format(len(table.rows))
+        else:
+            status = 'INSERT {}'.format(len(table.rows))
+
+        return RunModelResult(compiled_node, status=status)
+
+    def compile(self, flat_graph):
+        return self.node
+
+    def print_result_line(self, result):
+        schema_name = self.node.get('schema')
+        dbt.ui.printer.print_seed_result_line(result,
+                                              schema_name,
+                                              self.node_index,
+                                              self.num_nodes)
