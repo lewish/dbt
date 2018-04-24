@@ -180,6 +180,7 @@ class DBTIntegrationTest(unittest.TestCase):
         connection = adapter.acquire_connection(profile, '__test')
         self.handle = connection.get('handle')
         self.adapter_type = profile.get('type')
+        self.adapter = adapter
         self._profile = profile
         self._profile_config = profile_config
         self.project = project
@@ -199,9 +200,6 @@ class DBTIntegrationTest(unittest.TestCase):
             'version': '1.0',
             'test-paths': [],
             'source-paths': [self.models],
-            'quoting': {
-                'identifier': False,
-            },
             'profile': 'test',
         }
 
@@ -231,6 +229,8 @@ class DBTIntegrationTest(unittest.TestCase):
 
         profile = profile_config.get('test').get('outputs').get('default2')
         adapter = get_adapter(profile)
+
+        self.adapter = adapter
 
         # it's important to use a different connection handle here so
         # we don't look into an incomplete transaction
@@ -266,8 +266,11 @@ class DBTIntegrationTest(unittest.TestCase):
             adapter.drop_schema(self._profile, self.project,
                                 self.unique_schema(), '__test')
         else:
+            if self.project.cfg.get('quoting', {}).get('schema', True):
+                schema = self.adapter.quote(self.unique_schema())
+
             self.run_sql('DROP SCHEMA IF EXISTS {} CASCADE'
-                         .format(self.unique_schema()))
+                         .format(schema))
             self.handle.close()
 
         # hack for BQ -- TODO
@@ -382,6 +385,14 @@ class DBTIntegrationTest(unittest.TestCase):
         else:
             columns_csv = ", ".join(['{}'.format(record[0]) for record in columns])
 
+        if self.project.cfg.get('quoting', {}).get('identifier', True):
+            table_a = self.adapter.quote(table_a)
+            table_b = self.adapter.quote(table_b)
+
+        if self.project.cfg.get('quoting', {}).get('schema', True):
+            table_a_schema = self.adapter.quote(table_a_schema)
+            table_b_schema = self.adapter.quote(table_b_schema)
+
         sql = """
             SELECT COUNT(*) FROM (
                 (SELECT {columns} FROM {table_a_schema}.{table_a} EXCEPT
@@ -430,6 +441,14 @@ class DBTIntegrationTest(unittest.TestCase):
         table_b_schema = self.unique_schema() \
                          if table_b_schema is None else table_b_schema
 
+        if self.project.cfg.get('quoting', {}).get('identifier', True):
+            table_a = self.adapter.quote(table_a)
+            table_b = self.adapter.quote(table_b)
+
+        if self.project.cfg.get('quoting', {}).get('schema', True):
+            table_a_schema = self.adapter.quote(table_a_schema)
+            table_b_schema = self.adapter.quote(table_b_schema)
+
         table_a_result = self.run_sql(
             'SELECT COUNT(*) FROM {}.{}'
             .format(table_a_schema, table_a), fetch='one')
@@ -467,6 +486,14 @@ class DBTIntegrationTest(unittest.TestCase):
     def assertTableColumnsEqual(self, table_a, table_b, table_a_schema=None, table_b_schema=None):
         table_a_schema = self.unique_schema() if table_a_schema is None else table_a_schema
         table_b_schema = self.unique_schema() if table_b_schema is None else table_b_schema
+
+        if self.project.cfg.get('quoting', {}).get('identifier', True):
+            table_a = self.adapter.quote(table_a)
+            table_b = self.adapter.quote(table_b)
+
+        if self.project.cfg.get('quoting', {}).get('schema', True):
+            table_a_schema = self.adapter.quote(table_a_schema)
+            table_b_schema = self.adapter.quote(table_b_schema)
 
         table_a_result = self.get_table_columns(table_a, table_a_schema)
         table_b_result = self.get_table_columns(table_b, table_b_schema)

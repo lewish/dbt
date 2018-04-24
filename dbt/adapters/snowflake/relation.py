@@ -1,5 +1,4 @@
 from dbt.adapters.default.relation import DefaultRelation
-from dbt.utils import filter_null_values
 
 
 class SnowflakeRelation(DefaultRelation):
