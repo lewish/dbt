@@ -21,8 +21,8 @@ class TestSimpleCopy(DBTIntegrationTest):
 
     @attr(type="postgres")
     def test__postgres__simple_copy(self):
-        self.use_default_project({"data-paths": [self.dir("seed-initial")]})
         self.use_profile("postgres")
+        self.use_default_project({"data-paths": [self.dir("seed-initial")]})
 
         self.run_dbt(["seed"])
         self.run_dbt()
@@ -41,8 +41,8 @@ class TestSimpleCopy(DBTIntegrationTest):
 
     @attr(type="postgres")
     def test__postgres__dbt_doesnt_run_empty_models(self):
-        self.use_default_project({"data-paths": [self.dir("seed-initial")]})
         self.use_profile("postgres")
+        self.use_default_project({"data-paths": [self.dir("seed-initial")]})
 
         self.run_dbt(["seed"])
         self.run_dbt()
@@ -54,8 +54,8 @@ class TestSimpleCopy(DBTIntegrationTest):
 
     @attr(type="snowflake")
     def test__snowflake__simple_copy(self):
-        self.use_default_project({"data-paths": [self.dir("seed-initial")]})
         self.use_profile("snowflake")
+        self.use_default_project({"data-paths": [self.dir("seed-initial")]})
 
         self.run_dbt(["seed"])
         self.run_dbt()
@@ -74,11 +74,11 @@ class TestSimpleCopy(DBTIntegrationTest):
 
     @attr(type="snowflake")
     def test__snowflake__simple_copy__quoting_on(self):
+        self.use_profile("snowflake")
         self.use_default_project({
             "data-paths": [self.dir("seed-initial")],
             "quoting": {"identifier": True},
         })
-        self.use_profile("snowflake")
 
         self.run_dbt(["seed"])
         self.run_dbt()
@@ -100,11 +100,11 @@ class TestSimpleCopy(DBTIntegrationTest):
 
     @attr(type="snowflake")
     def test__snowflake__simple_copy__quoting_off(self):
+        self.use_profile("snowflake")
         self.use_default_project({
             "data-paths": [self.dir("seed-initial")],
             "quoting": {"identifier": False},
         })
-        self.use_profile("snowflake")
 
         self.run_dbt(["seed"])
         self.run_dbt()

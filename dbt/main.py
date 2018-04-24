@@ -175,7 +175,6 @@ def invoke_dbt(parsed):
             profile_to_load=parsed.profile,
             args=parsed
         )
-        proj.log_warnings()
         proj.validate()
     except project.DbtProjectError as e:
         logger.info("Encountered an error while reading the project:")
@@ -232,6 +231,8 @@ def invoke_dbt(parsed):
                 result="target not found")
 
             return None
+
+    proj.log_warnings()
 
     flags.NON_DESTRUCTIVE = getattr(proj.args, 'non_destructive', False)
 

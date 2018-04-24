@@ -16,8 +16,8 @@ class TestEphemeral(DBTIntegrationTest):
 
     @attr(type='postgres')
     def test__postgres(self):
-        self.use_default_project()
         self.use_profile('postgres')
+        self.use_default_project()
         self.run_sql_file("test/integration/020_ephemeral_test/seed.sql")
 
         result = self.run_dbt()
@@ -27,8 +27,8 @@ class TestEphemeral(DBTIntegrationTest):
 
     @attr(type='snowflake')
     def test__snowflake(self):
-        self.use_default_project()
         self.use_profile('snowflake')
+        self.use_default_project()
         self.run_sql_file("test/integration/020_ephemeral_test/seed.sql")
 
         self.run_dbt()

@@ -6,6 +6,7 @@ import time
 import json
 
 from dbt.adapters.factory import get_adapter
+from dbt.project import Project
 
 from dbt.logger import GLOBAL_LOGGER as logger
 
@@ -169,6 +170,8 @@ class DBTIntegrationTest(unittest.TestCase):
 
         profile = profile_config.get('test').get('outputs').get(target)
 
+        project = Project(project_config, profile_config, DBT_CONFIG_DIR)
+
         adapter = get_adapter(profile)
 
         # it's important to use a different connection handle here so
@@ -177,12 +180,14 @@ class DBTIntegrationTest(unittest.TestCase):
         connection = adapter.acquire_connection(profile, '__test')
         self.handle = connection.get('handle')
         self.adapter_type = profile.get('type')
-        self.profile = profile
+        self._profile = profile
+        self._profile_config = profile_config
+        self.project = project
 
         if self.adapter_type == 'bigquery':
             schema_name = self.unique_schema()
-            adapter.drop_schema(profile, schema_name, '__test')
-            adapter.create_schema(profile, schema_name, '__test')
+            adapter.drop_schema(profile, project, schema_name, '__test')
+            adapter.create_schema(profile, project, schema_name, '__test')
         else:
             self.run_sql('DROP SCHEMA IF EXISTS {} CASCADE'.format(self.unique_schema()))
             self.run_sql('CREATE SCHEMA {}'.format(self.unique_schema()))
@@ -204,6 +209,9 @@ class DBTIntegrationTest(unittest.TestCase):
         project_config.update(base_project_config)
         project_config.update(self.project_config)
         project_config.update(overrides or {})
+
+        project = Project(project_config, self._profile_config, DBT_CONFIG_DIR)
+        self.project = project
 
         with open("dbt_project.yml", 'w') as f:
             yaml.safe_dump(project_config, f, default_flow_style=True)
@@ -229,11 +237,14 @@ class DBTIntegrationTest(unittest.TestCase):
         connection = adapter.acquire_connection(profile, '__test')
         self.handle = connection.get('handle')
         self.adapter_type = profile.get('type')
-        self.profile = profile
+        self._profile_config = profile_config
+        self._profile = profile
 
         if self.adapter_type == 'bigquery':
-            adapter.drop_schema(profile, self.unique_schema(), '__test')
-            adapter.create_schema(profile, self.unique_schema(), '__test')
+            adapter.drop_schema(profile, self.project,
+                                self.unique_schema(), '__test')
+            adapter.create_schema(profile, self.project,
+                                  self.unique_schema(), '__test')
         else:
             self.run_sql('DROP SCHEMA IF EXISTS {} CASCADE'.format(self.unique_schema()))
             self.run_sql('CREATE SCHEMA {}'.format(self.unique_schema()))
@@ -249,10 +260,11 @@ class DBTIntegrationTest(unittest.TestCase):
         except:
             os.rename("dbt_modules", "dbt_modules-{}".format(time.time()))
 
-        adapter = get_adapter(self.profile)
+        adapter = get_adapter(self._profile)
 
         if self.adapter_type == 'bigquery':
-            adapter.drop_schema(self.profile, self.unique_schema(), '__test')
+            adapter.drop_schema(self._profile, self.project,
+                                self.unique_schema(), '__test')
         else:
             self.run_sql('DROP SCHEMA IF EXISTS {} CASCADE'
                          .format(self.unique_schema()))

@@ -7,7 +7,6 @@ import dbt.compat
 import dbt.exceptions
 import agate
 
-from dbt.utils import chunks
 from dbt.logger import GLOBAL_LOGGER as logger
 
 
@@ -17,8 +16,6 @@ class PostgresAdapter(dbt.adapters.default.DefaultAdapter):
     @contextmanager
     def exception_handler(cls, profile, sql, model_name=None,
                           connection_name=None):
-        connection = cls.get_connection(profile, connection_name)
-
         try:
             yield
 
@@ -86,7 +83,24 @@ class PostgresAdapter(dbt.adapters.default.DefaultAdapter):
         return result
 
     @classmethod
-    def alter_column_type(cls, profile, schema, table, column_name,
+    def cancel_connection(cls, profile, connection):
+        connection_name = connection.get('name')
+        pid = connection.get('handle').get_backend_pid()
+
+        sql = "select pg_terminate_backend({})".format(pid)
+
+        logger.debug("Cancelling query '{}' ({})".format(connection_name, pid))
+
+        _, cursor = cls.add_query(profile, sql, 'master')
+        res = cursor.fetchone()
+
+        logger.debug("Cancel query '{}': {}".format(connection_name, res))
+
+    # DATABASE INSPECTION FUNCTIONS
+    # These require the profile AND project, as they need to know
+    # database-specific configs at the project level.
+    @classmethod
+    def alter_column_type(cls, profile, project, schema, table, column_name,
                           new_column_type, model_name=None):
         """
         1. Create a new column (w/ temp name and correct type)
@@ -115,7 +129,7 @@ class PostgresAdapter(dbt.adapters.default.DefaultAdapter):
         return connection, cursor
 
     @classmethod
-    def list_relations(cls, profile, schema, model_name=None):
+    def list_relations(cls, profile, project, schema, model_name=None):
         sql = """
         select tablename as name, schemaname as schema, 'table' as type from pg_tables
         where schemaname ilike '{schema}'
@@ -141,7 +155,7 @@ class PostgresAdapter(dbt.adapters.default.DefaultAdapter):
                 for (name, _schema, type) in results]
 
     @classmethod
-    def get_existing_schemas(cls, profile, model_name=None):
+    def get_existing_schemas(cls, profile, project, model_name=None):
         sql = "select distinct nspname from pg_namespace"
 
         connection, cursor = cls.add_query(profile, sql, model_name,
@@ -151,7 +165,7 @@ class PostgresAdapter(dbt.adapters.default.DefaultAdapter):
         return [row[0] for row in results]
 
     @classmethod
-    def check_schema_exists(cls, profile, schema, model_name=None):
+    def check_schema_exists(cls, profile, project, schema, model_name=None):
         sql = """
         select count(*) from pg_namespace where nspname = '{schema}'
         """.format(schema=schema).strip()  # noqa
@@ -161,20 +175,6 @@ class PostgresAdapter(dbt.adapters.default.DefaultAdapter):
         results = cursor.fetchone()
 
         return results[0] > 0
-
-    @classmethod
-    def cancel_connection(cls, profile, connection):
-        connection_name = connection.get('name')
-        pid = connection.get('handle').get_backend_pid()
-
-        sql = "select pg_terminate_backend({})".format(pid)
-
-        logger.debug("Cancelling query '{}' ({})".format(connection_name, pid))
-
-        _, cursor = cls.add_query(profile, sql, 'master')
-        res = cursor.fetchone()
-
-        logger.debug("Cancel query '{}': {}".format(connection_name, res))
 
     @classmethod
     def convert_text_type(cls, agate_table, col_idx):

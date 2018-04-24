@@ -17,8 +17,8 @@ class TestConcurrency(DBTIntegrationTest):
 
     @attr(type='postgres')
     def test__postgres__concurrency(self):
-        self.use_default_project()
         self.use_profile('postgres')
+        self.use_default_project()
         self.run_sql_file("test/integration/021_concurrency_test/seed.sql")
 
         self.run_dbt(expect_pass=False)
@@ -43,8 +43,8 @@ class TestConcurrency(DBTIntegrationTest):
 
     @attr(type='snowflake')
     def test__snowflake__concurrency(self):
-        self.use_default_project()
         self.use_profile('snowflake')
+        self.use_default_project()
         self.run_sql_file("test/integration/021_concurrency_test/seed.sql")
 
         self.run_dbt(expect_pass=False)

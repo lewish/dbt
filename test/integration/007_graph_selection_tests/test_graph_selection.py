@@ -13,8 +13,8 @@ class TestGraphSelection(DBTIntegrationTest):
 
     @attr(type='postgres')
     def test__postgres__specific_model(self):
-        self.use_default_project()
         self.use_profile('postgres')
+        self.use_default_project()
         self.run_sql_file("test/integration/007_graph_selection_tests/seed.sql")
 
         self.run_dbt(['run', '--models', 'users'])
@@ -27,8 +27,8 @@ class TestGraphSelection(DBTIntegrationTest):
 
     @attr(type='snowflake')
     def test__snowflake__specific_model(self):
-        self.use_default_project()
         self.use_profile('snowflake')
+        self.use_default_project()
         self.run_sql_file("test/integration/007_graph_selection_tests/seed.sql")
 
         self.run_dbt(['run', '--models', 'users'])
@@ -42,8 +42,8 @@ class TestGraphSelection(DBTIntegrationTest):
 
     @attr(type='postgres')
     def test__postgres__specific_model_and_children(self):
-        self.use_default_project()
         self.use_profile('postgres')
+        self.use_default_project()
         self.run_sql_file("test/integration/007_graph_selection_tests/seed.sql")
 
         self.run_dbt(['run', '--models', 'users+'])
@@ -56,8 +56,8 @@ class TestGraphSelection(DBTIntegrationTest):
 
     @attr(type='snowflake')
     def test__snowflake__specific_model_and_children(self):
-        self.use_default_project()
         self.use_profile('snowflake')
+        self.use_default_project()
         self.run_sql_file("test/integration/007_graph_selection_tests/seed.sql")
 
         self.run_dbt(['run', '--models', 'users+'])
@@ -71,8 +71,8 @@ class TestGraphSelection(DBTIntegrationTest):
 
     @attr(type='postgres')
     def test__postgres__specific_model_and_parents(self):
-        self.use_default_project()
         self.use_profile('postgres')
+        self.use_default_project()
         self.run_sql_file("test/integration/007_graph_selection_tests/seed.sql")
 
         self.run_dbt(['run', '--models', '+users_rollup'])
@@ -85,8 +85,8 @@ class TestGraphSelection(DBTIntegrationTest):
 
     @attr(type='snowflake')
     def test__snowflake__specific_model_and_parents(self):
-        self.use_default_project()
         self.use_profile('snowflake')
+        self.use_default_project()
         self.run_sql_file("test/integration/007_graph_selection_tests/seed.sql")
 
         self.run_dbt(['run', '--models', '+users_rollup'])
@@ -100,8 +100,8 @@ class TestGraphSelection(DBTIntegrationTest):
 
     @attr(type='postgres')
     def test__postgres__specific_model_with_exclusion(self):
-        self.use_default_project()
         self.use_profile('postgres')
+        self.use_default_project()
         self.run_sql_file("test/integration/007_graph_selection_tests/seed.sql")
 
         self.run_dbt(['run', '--models', '+users_rollup', '--exclude', 'users_rollup'])
@@ -114,8 +114,8 @@ class TestGraphSelection(DBTIntegrationTest):
 
     @attr(type='snowflake')
     def test__snowflake__specific_model_with_exclusion(self):
-        self.use_default_project()
         self.use_profile('snowflake')
+        self.use_default_project()
         self.run_sql_file("test/integration/007_graph_selection_tests/seed.sql")
 
         self.run_dbt(['run', '--models', '+users_rollup', '--exclude', 'users_rollup'])

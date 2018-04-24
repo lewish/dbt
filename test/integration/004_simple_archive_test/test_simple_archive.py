@@ -35,8 +35,8 @@ class TestSimpleArchive(DBTIntegrationTest):
 
     @attr(type='postgres')
     def test__postgres__simple_archive(self):
-        self.use_default_project()
         self.use_profile('postgres')
+        self.use_default_project()
         self.run_sql_file("test/integration/004_simple_archive_test/seed.sql")
 
         self.run_dbt(["archive"])
@@ -52,8 +52,8 @@ class TestSimpleArchive(DBTIntegrationTest):
 
     @attr(type='snowflake')
     def test__snowflake__simple_archive(self):
-        self.use_default_project()
         self.use_profile('snowflake')
+        self.use_default_project()
         self.run_sql_file("test/integration/004_simple_archive_test/seed.sql")
 
         self.run_dbt(["archive"])

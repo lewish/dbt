@@ -30,10 +30,11 @@ class DatabaseWrapper(object):
     functions.
     """
 
-    def __init__(self, model, adapter, profile):
+    def __init__(self, model, adapter, profile, project):
         self.model = model
         self.adapter = adapter
         self.profile = profile
+        self.project = project
         self.Relation = adapter.Relation
 
         # Fun with metaprogramming
@@ -43,16 +44,21 @@ class DatabaseWrapper(object):
         for context_function in self.adapter.context_functions:
             setattr(self,
                     context_function,
-                    self.wrap_with_profile_and_model_name(context_function))
+                    self.wrap(context_function, (self.profile, self.project,)))
+
+        for profile_function in self.adapter.profile_functions:
+            setattr(self,
+                    profile_function,
+                    self.wrap(profile_function, (self.profile,)))
 
         for raw_function in self.adapter.raw_functions:
             setattr(self,
                     raw_function,
                     getattr(self.adapter, raw_function))
 
-    def wrap_with_profile_and_model_name(self, fn):
+    def wrap(self, fn, arg_prefix):
         def wrapped(*args, **kwargs):
-            args = (self.profile,) + args
+            args = arg_prefix + args
             kwargs['model_name'] = self.model.get('name')
             return getattr(self.adapter, fn)(*args, **kwargs)
 
@@ -318,7 +324,7 @@ def generate(model, project, flat_graph, provider=None):
     pre_hooks = model.get('config', {}).get('pre-hook')
     post_hooks = model.get('config', {}).get('post-hook')
 
-    db_wrapper = DatabaseWrapper(model, adapter, profile)
+    db_wrapper = DatabaseWrapper(model, adapter, profile, project)
 
     context = dbt.utils.merge(context, {
         "adapter": db_wrapper,
