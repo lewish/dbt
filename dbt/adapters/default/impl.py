@@ -40,7 +40,6 @@ class DefaultAdapter(object):
 
         # just deprecated. going away in a future release
         "quote_schema_and_table",
-<<<<<<< HEAD:dbt/adapters/default/impl.py
 
         # versions of adapter functions that take / return Relations
         "list_relations",
@@ -51,10 +50,7 @@ class DefaultAdapter(object):
 
         "execute",
         "add_query",
-=======
-        "execute",
         "convert_type"
->>>>>>> 5fefbbd21494f50952c03fa0025325b4aaab249f:dbt/adapters/default.py
     ]
 
     raw_functions = [
