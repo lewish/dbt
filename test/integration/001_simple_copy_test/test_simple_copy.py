@@ -109,9 +109,9 @@ class TestSimpleCopy(DBTIntegrationTest):
         self.run_dbt(["seed"])
         self.run_dbt()
 
-        self.assertTablesEqual('"seed"', '"view_model"')
-        self.assertTablesEqual('"seed"', '"incremental"')
-        self.assertTablesEqual('"seed"', '"materialized"')
+        self.assertTablesEqual("seed", "view_model")
+        self.assertTablesEqual("seed", "incremental")
+        self.assertTablesEqual("seed", "materialized")
 
         self.use_default_project({
             "data-paths": [self.dir("seed-update")],
@@ -120,6 +120,6 @@ class TestSimpleCopy(DBTIntegrationTest):
         self.run_dbt(["seed"])
         self.run_dbt()
 
-        self.assertTablesEqual('"seed"', '"view_model"')
-        self.assertTablesEqual('"seed"', '"incremental"')
-        self.assertTablesEqual('"seed"', '"materialized"')
+        self.assertTablesEqual("seed", "view_model")
+        self.assertTablesEqual("seed", "incremental")
+        self.assertTablesEqual("seed", "materialized")
