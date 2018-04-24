@@ -106,7 +106,7 @@
   -- build model
   {% set create_table_sql = "" %}
   {% if exists_as_view %}
-    {{ dbt.exceptions.raise_compiler_error("Cannot seed to '{}', it is a view".format(identifier)) }}
+    {{ exceptions.raise_compiler_error("Cannot seed to '{}', it is a view".format(old_relation)) }}
   {% elif exists_as_table %}
     {% set create_table_sql = reset_csv_table(model, full_refresh_mode, old_relation) %}
   {% else %}
