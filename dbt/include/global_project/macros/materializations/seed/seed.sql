@@ -14,9 +14,10 @@
 {% macro default__create_csv_table(model) %}
   {%- set agate_table = model['agate_table'] -%}
   {%- set column_override = model['config'].get('column_types', {}) -%}
+  {%- set target_relation = api.Relation.create_from_node(model) -%}
 
   {% set sql %}
-    create table {{ adapter.quote(model['schema']) }}.{{ adapter.quote(model['name']) }} (
+    create table {{ target_relation }} (
         {% for col_name in agate_table.column_names %}
             {% set inferred_type = adapter.convert_type(agate_table, loop.index0) %}
             {% set type = column_override.get(col_name, inferred_type) %}
@@ -52,6 +53,7 @@
     {% set cols_sql = ", ".join(agate_table.column_names) %}
     {% set bindings = [] %}
 
+    {% set target_relation = api.Relation.create_from_node(model) %}
     {% set statements = [] %}
 
     {% for chunk in agate_table.rows | batch(10000) %}
@@ -62,7 +64,7 @@
         {% endfor %}
 
         {% set sql %}
-            insert into {{ adapter.quote(model['schema']) }}.{{ adapter.quote(model['name']) }} ({{ cols_sql }}) values
+            insert into {{ target_relation }} ({{ cols_sql }}) values
             {% for row in chunk -%}
                 ({%- for column in agate_table.column_names -%}
                     %s
