@@ -221,11 +221,11 @@ class SnowflakeAdapter(PostgresAdapter):
     @classmethod
     def _make_match_kwargs(cls, project, schema, identifier):
         if identifier is not None and \
-           project.cfg.get('quoting', {}).get('identifier') is False:
+           project.cfg.get('quoting', {}).get('identifier', True) is False:
             identifier = identifier.upper()
 
         if schema is not None and \
-           project.cfg.get('quoting', {}).get('schema') is False:
+           project.cfg.get('quoting', {}).get('schema', True) is False:
             schema = schema.upper()
 
         return filter_null_values({'identifier': identifier,
@@ -249,7 +249,6 @@ class SnowflakeAdapter(PostgresAdapter):
 
     @classmethod
     def _get_columns_in_table_sql(cls, schema_name, table_name, database):
-
         schema_filter = '1=1'
         if schema_name is not None:
             schema_filter = "table_schema ilike '{}'".format(schema_name)

@@ -141,7 +141,8 @@ class DefaultAdapter(object):
         return dbt.clients.agate_helper.table_from_data(data)
 
     @classmethod
-    def drop(cls, profile, project, schema, relation, relation_type, model_name=None):
+    def drop(cls, profile, project, schema,
+             relation, relation_type, model_name=None):
         identifier = relation
         relation = cls.Relation.create(
             schema=schema,
@@ -177,7 +178,8 @@ class DefaultAdapter(object):
         connection, cursor = cls.add_query(profile, sql, model_name)
 
     @classmethod
-    def rename(cls, profile, project, schema, from_name, to_name, model_name=None):
+    def rename(cls, profile, project, schema,
+               from_name, to_name, model_name=None):
         return cls.rename_relation(
             profile, project,
             from_relation=cls.Relation.create(
@@ -221,7 +223,6 @@ class DefaultAdapter(object):
 
     @classmethod
     def _get_columns_in_table_sql(cls, schema_name, table_name, database):
-
         schema_filter = '1=1'
         if schema_name is not None:
             schema_filter = "table_schema = '{}'".format(schema_name)
@@ -351,7 +352,7 @@ class DefaultAdapter(object):
     ###
     @classmethod
     def get_create_schema_sql(cls, project, schema):
-        if project.cfg.get('quoting', {}).get('schema'):
+        if project.cfg.get('quoting', {}).get('schema', True):
             schema = cls.quote(schema)
 
         return ('create schema if not exists {schema}'
@@ -359,7 +360,7 @@ class DefaultAdapter(object):
 
     @classmethod
     def get_drop_schema_sql(cls, project, schema):
-        if project.cfg.get('quoting', {}).get('schema'):
+        if project.cfg.get('quoting', {}).get('schema', True):
             schema = cls.quote(schema)
 
         return ('drop schema if exists {schema} cascade'

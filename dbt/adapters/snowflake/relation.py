@@ -9,8 +9,8 @@ class SnowflakeRelation(DefaultRelation):
         },
         'quote_character': '"',
         'quote_policy': {
-            'database': False,
-            'schema': False,
+            'database': True,
+            'schema': True,
             'identifier': True,
         },
         'include_policy': {
@@ -48,25 +48,6 @@ class SnowflakeRelation(DefaultRelation):
             schema=node.get('schema'),
             identifier=node.get('name'),
             **kwargs)
-
-    def matches(self, database=None, schema=None, identifier=None):
-        search = filter_null_values({
-            'database': database,
-            'schema': schema,
-            'identifier': identifier
-        })
-
-        if not search:
-            # nothing was passed in
-            pass
-
-        for k, v in search.items():
-            # snowflake upcases unquoted identiifers. so, use
-            # case insensitive matching.
-            if self.get_path_part(k).upper() != v.upper():
-                return False
-
-        return True
 
     def get_path_part(self, part):
         return self.path.get(part)

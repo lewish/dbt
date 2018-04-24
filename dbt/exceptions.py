@@ -313,18 +313,18 @@ def multiple_matching_relations(kwargs, matches):
         .format(kwargs, matches))
 
 
-def approximate_relation_match(search, relation):
-    raise_compiler_error(
-        'When searching for a relation, dbt found an approximate match. '
-        'Instead of guessing which relation to use, dbt will abort. '
-        'Please delete the approximate match, or rename it to match the '
-        'identifier dbt is trying to edit.'
-        '\nSearch: {}\nRelation: {}'
-        .format(search, relation))
-
-
 def get_relation_returned_multiple_results(kwargs, matches):
     multiple_matching_relations(kwargs, matches)
+
+
+def approximate_relation_match(target, relation):
+    raise_compiler_error(
+        'When searching for a relation, dbt found an approximate match. '
+        'Instead of guessing \nwhich relation to use, dbt will exit. '
+        'Please delete {relation}, or rename it to be less ambiguous.'
+        '\nSearched for: {target}\nFound: {relation}'
+        .format(target=target,
+                relation=relation))
 
 
 def raise_duplicate_resource_name(node_1, node_2):

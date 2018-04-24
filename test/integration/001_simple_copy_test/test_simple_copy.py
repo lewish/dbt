@@ -123,3 +123,19 @@ class TestSimpleCopy(DBTIntegrationTest):
         self.assertTablesEqual("seed", "view_model")
         self.assertTablesEqual("seed", "incremental")
         self.assertTablesEqual("seed", "materialized")
+
+    @attr(type="snowflake")
+    def test__snowflake__seed__quoting_switch(self):
+        self.use_profile("snowflake")
+        self.use_default_project({
+            "data-paths": [self.dir("seed-initial")],
+            "quoting": {"identifier": False},
+        })
+
+        self.run_dbt(["seed"])
+
+        self.use_default_project({
+            "data-paths": [self.dir("seed-update")],
+            "quoting": {"identifier": True},
+        })
+        self.run_dbt(["seed"], expect_pass=False)
