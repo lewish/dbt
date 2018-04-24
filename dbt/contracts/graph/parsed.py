@@ -26,6 +26,7 @@ config_contract = Schema({
     Required('pre-hook'): [hook_contract],
     Required('vars'): dict,
     Required('quoting'): dict,
+    Required('column_types'): dict,
 }, extra=ALLOW_EXTRA)
 
 parsed_node_contract = unparsed_node_contract.extend({
