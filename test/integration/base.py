@@ -194,6 +194,9 @@ class DBTIntegrationTest(unittest.TestCase):
             'version': '1.0',
             'test-paths': [],
             'source-paths': [self.models],
+            'quoting': {
+                'identifier': False,
+            },
             'profile': 'test',
         }
 
@@ -276,8 +279,10 @@ class DBTIntegrationTest(unittest.TestCase):
         args = ["--strict"] + args
         logger.info("Invoking dbt with {}".format(args))
 
-        res, success =  dbt.handle_and_check(args)
-        self.assertEqual(success, expect_pass, "dbt exit state did not match expected")
+        res, success = dbt.handle_and_check(args)
+        self.assertEqual(
+            success, expect_pass,
+            "dbt exit state did not match expected")
 
         return res
 
@@ -335,7 +340,8 @@ class DBTIntegrationTest(unittest.TestCase):
                 and table_schema ilike '{}'
                 order by column_name asc"""
 
-        result = self.run_sql(sql.format(table, schema), fetch='all')
+        result = self.run_sql(sql.format(table.replace('"', ''), schema),
+                              fetch='all')
 
         return result
 
@@ -381,15 +387,21 @@ class DBTIntegrationTest(unittest.TestCase):
 
         return sql
 
-    def assertTablesEqual(self, table_a, table_b, table_a_schema=None, table_b_schema=None):
-        table_a_schema = self.unique_schema() if table_a_schema is None else table_a_schema
-        table_b_schema = self.unique_schema() if table_b_schema is None else table_b_schema
+    def assertTablesEqual(self, table_a, table_b,
+                          table_a_schema=None, table_b_schema=None):
+        table_a_schema = self.unique_schema() \
+                         if table_a_schema is None else table_a_schema
 
-        self.assertTableColumnsEqual(table_a, table_b, table_a_schema, table_b_schema)
-        self.assertTableRowCountsEqual(table_a, table_b, table_a_schema, table_b_schema)
+        table_b_schema = self.unique_schema() \
+                         if table_b_schema is None else table_b_schema
 
+        self.assertTableColumnsEqual(table_a, table_b,
+                                     table_a_schema, table_b_schema)
+        self.assertTableRowCountsEqual(table_a, table_b,
+                                       table_a_schema, table_b_schema)
 
-        sql = self._assertTablesEqualSql(table_a_schema, table_a, table_b_schema, table_b)
+        sql = self._assertTablesEqualSql(table_a_schema, table_a,
+                                         table_b_schema, table_b)
         result = self.run_sql(sql, fetch='one')
 
         self.assertEquals(
@@ -398,12 +410,20 @@ class DBTIntegrationTest(unittest.TestCase):
             sql
         )
 
-    def assertTableRowCountsEqual(self, table_a, table_b, table_a_schema=None, table_b_schema=None):
-        table_a_schema = self.unique_schema() if table_a_schema is None else table_a_schema
-        table_b_schema = self.unique_schema() if table_b_schema is None else table_b_schema
+    def assertTableRowCountsEqual(self, table_a, table_b,
+                                  table_a_schema=None, table_b_schema=None):
+        table_a_schema = self.unique_schema() \
+                         if table_a_schema is None else table_a_schema
 
-        table_a_result = self.run_sql('SELECT COUNT(*) FROM {}.{}'.format(table_a_schema, table_a), fetch='one')
-        table_b_result = self.run_sql('SELECT COUNT(*) FROM {}.{}'.format(table_b_schema, table_b), fetch='one')
+        table_b_schema = self.unique_schema() \
+                         if table_b_schema is None else table_b_schema
+
+        table_a_result = self.run_sql(
+            'SELECT COUNT(*) FROM {}.{}'
+            .format(table_a_schema, table_a), fetch='one')
+        table_b_result = self.run_sql(
+            'SELECT COUNT(*) FROM {}.{}'
+            .format(table_b_schema, table_b), fetch='one')
 
         self.assertEquals(
             table_a_result[0],

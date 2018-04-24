@@ -118,7 +118,7 @@ class DefaultRelation(APIObject):
 
         return self.incorporate(include_policy=policy)
 
-    def render(self):
+    def render(self, use_table_name=True):
         parts = []
 
         for k in self.PATH_ELEMENTS:
@@ -128,7 +128,10 @@ class DefaultRelation(APIObject):
                 if path_part is None:
                     continue
                 elif k == 'identifier':
-                    path_part = self.table
+                    if use_table_name:
+                        path_part = self.table
+                    else:
+                        path_part = self.identifier
 
                 parts.append(
                     self.quote_if(

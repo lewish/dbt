@@ -273,12 +273,13 @@ def _return(value):
     raise dbt.exceptions.MacroReturn(value)
 
 
-def get_this_relation(db_wrapper, profile, model):
+def get_this_relation(db_wrapper, project, profile, model):
     table_name = dbt.utils.model_immediate_name(
             model, dbt.flags.NON_DESTRUCTIVE)
 
     return db_wrapper.adapter.Relation.create_from_node(
-        profile, model, table_name=table_name)
+        profile, model, table_name=table_name,
+        quote_policy=project.get('quoting', {}))
 
 
 def create_relation(relation_type, quoting_config):
@@ -349,7 +350,7 @@ def generate(model, project, flat_graph, provider=None):
         "fromjson": fromjson,
         "tojson": tojson,
         "target": target,
-        "this": get_this_relation(db_wrapper, profile, model),
+        "this": get_this_relation(db_wrapper, project, profile, model),
         "try_or_compiler_error": try_or_compiler_error(model)
     })
 

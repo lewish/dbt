@@ -11,7 +11,7 @@ class SnowflakeRelation(DefaultRelation):
         'quote_policy': {
             'database': False,
             'schema': False,
-            'identifier': False,
+            'identifier': True,
         },
         'include_policy': {
             'database': False,
@@ -61,17 +61,10 @@ class SnowflakeRelation(DefaultRelation):
             pass
 
         for k, v in search.items():
-            # snowflake upcases unquoted identiifers. so, when
-            # comparing unquoted identifiers, use case insensitive
-            # matching. when comparing quoted identifiers, use case
-            # sensitive matching.
-            if self.should_quote(k):
-                if self.get_path_part(k) != v:
-                    return False
-
-            else:
-                if self.get_path_part(k) != v.upper():
-                    return False
+            # snowflake upcases unquoted identiifers. so, use
+            # case insensitive matching.
+            if self.get_path_part(k).upper() != v.upper():
+                return False
 
         return True
 

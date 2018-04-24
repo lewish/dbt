@@ -3,8 +3,8 @@
   {{ adapter_macro('create_csv_table', model) }}
 {%- endmacro %}
 
-{% macro reset_csv_table(model, full_refresh, existing) -%}
-  {{ adapter_macro('reset_csv_table', model, full_refresh, existing) }}
+{% macro reset_csv_table(model, full_refresh, old_relation) -%}
+  {{ adapter_macro('reset_csv_table', model, full_refresh, old_relation) }}
 {%- endmacro %}
 
 {% macro load_csv_rows(model) -%}
@@ -14,15 +14,14 @@
 {% macro default__create_csv_table(model) %}
   {%- set agate_table = model['agate_table'] -%}
   {%- set column_override = model['config'].get('column_types', {}) -%}
-  {%- set target_relation = api.Relation.create_from_node(model) -%}
 
   {% set sql %}
-    create table {{ target_relation }} (
-        {% for col_name in agate_table.column_names %}
-            {% set inferred_type = adapter.convert_type(agate_table, loop.index0) %}
-            {% set type = column_override.get(col_name, inferred_type) %}
-            {{ col_name | string }} {{ type }} {% if not loop.last %}, {% endif %}
-        {% endfor %}
+    create table {{ this.render(False) }} (
+        {%- for col_name in agate_table.column_names -%}
+            {%- set inferred_type = adapter.convert_type(agate_table, loop.index0) -%}
+            {%- set type = column_override.get(col_name, inferred_type) -%}
+            {{ col_name | string }} {{ type }} {%- if not loop.last -%}, {%- endif -%}
+        {%- endfor -%}
     )
   {% endset %}
 
@@ -34,14 +33,14 @@
 {% endmacro %}
 
 
-{% macro default__reset_csv_table(model, full_refresh, existing) %}
+{% macro default__reset_csv_table(model, full_refresh, old_relation) %}
     {% set sql = "" %}
     {% if full_refresh %}
-        {{ drop_if_exists(existing, model['schema'], model['name']) }}
+        {{ adapter.drop_relation(old_relation) }}
         {% set sql = create_csv_table(model) %}
     {% else %}
-        {{ adapter.truncate(model['schema'], model['name']) }}
-        {% set sql = "truncate table " ~ adapter.quote(model['schema']) ~ "." ~ adapter.quote(model['name']) %}
+        {{ adapter.truncate_relation(old_relation) }}
+        {% set sql = "truncate table " ~ old_relation %}
     {% endif %}
 
     {{ return(sql) }}
@@ -53,7 +52,6 @@
     {% set cols_sql = ", ".join(agate_table.column_names) %}
     {% set bindings = [] %}
 
-    {% set target_relation = api.Relation.create_from_node(model) %}
     {% set statements = [] %}
 
     {% for chunk in agate_table.rows | batch(10000) %}
@@ -64,7 +62,7 @@
         {% endfor %}
 
         {% set sql %}
-            insert into {{ target_relation }} ({{ cols_sql }}) values
+            insert into {{ this.render(False) }} ({{ cols_sql }}) values
             {% for row in chunk -%}
                 ({%- for column in agate_table.column_names -%}
                     %s
@@ -90,8 +88,14 @@
 
   {%- set identifier = model['name'] -%}
   {%- set full_refresh_mode = (flags.FULL_REFRESH == True) -%}
-  {%- set existing = adapter.query_for_existing(schema) -%}
-  {%- set existing_type = existing.get(identifier) -%}
+  {%- set existing_relations = adapter.list_relations(schema=schema) -%}
+
+  {%- set old_relation = adapter.get_relation(relations_list=existing_relations,
+                                              schema=schema, identifier=identifier) -%}
+
+  {%- set exists_as_table = (old_relation is not none and old_relation.is_table) -%}
+  {%- set exists_as_view = (old_relation is not none and old_relation.is_view) -%}
+
   {%- set csv_table = model["agate_table"] -%}
 
   {{ run_hooks(pre_hooks, inside_transaction=False) }}
@@ -101,12 +105,12 @@
 
   -- build model
   {% set create_table_sql = "" %}
-  {% if existing_type and existing_type != 'table' %}
+  {% if exists_as_view %}
     {{ dbt.exceptions.raise_compiler_error("Cannot seed to '{}', it is a view".format(identifier)) }}
-  {% elif existing_type is none%}
-    {% set create_table_sql = create_csv_table(model) %}
+  {% elif exists_as_table %}
+    {% set create_table_sql = reset_csv_table(model, full_refresh_mode, old_relation) %}
   {% else %}
-    {% set create_table_sql = reset_csv_table(model, full_refresh_mode, existing) %}
+    {% set create_table_sql = create_csv_table(model) %}
   {% endif %}
 
   {% set status = 'CREATE' if full_refresh_mode else 'INSERT' %}

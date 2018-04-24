@@ -60,14 +60,66 @@ class TestSimpleCopy(DBTIntegrationTest):
         self.run_dbt(["seed"])
         self.run_dbt()
 
-        self.assertTablesEqual("seed","view_model")
-        self.assertTablesEqual("seed","incremental")
-        self.assertTablesEqual("seed","materialized")
+        self.assertTablesEqual("seed", "view_model")
+        self.assertTablesEqual("seed", "incremental")
+        self.assertTablesEqual("seed", "materialized")
 
         self.use_default_project({"data-paths": [self.dir("seed-update")]})
         self.run_dbt(["seed"])
         self.run_dbt()
 
-        self.assertTablesEqual("seed","view_model")
-        self.assertTablesEqual("seed","incremental")
-        self.assertTablesEqual("seed","materialized")
+        self.assertTablesEqual("seed", "view_model")
+        self.assertTablesEqual("seed", "incremental")
+        self.assertTablesEqual("seed", "materialized")
+
+    @attr(type="snowflake")
+    def test__snowflake__simple_copy__quoting_on(self):
+        self.use_default_project({
+            "data-paths": [self.dir("seed-initial")],
+            "quoting": {"identifier": True},
+        })
+        self.use_profile("snowflake")
+
+        self.run_dbt(["seed"])
+        self.run_dbt()
+
+        self.assertTablesEqual('"seed"', '"view_model"')
+        self.assertTablesEqual('"seed"', '"incremental"')
+        self.assertTablesEqual('"seed"', '"materialized"')
+
+        self.use_default_project({
+            "data-paths": [self.dir("seed-update")],
+            "quoting": {"identifier": True},
+        })
+        self.run_dbt(["seed"])
+        self.run_dbt()
+
+        self.assertTablesEqual('"seed"', '"view_model"')
+        self.assertTablesEqual('"seed"', '"incremental"')
+        self.assertTablesEqual('"seed"', '"materialized"')
+
+    @attr(type="snowflake")
+    def test__snowflake__simple_copy__quoting_off(self):
+        self.use_default_project({
+            "data-paths": [self.dir("seed-initial")],
+            "quoting": {"identifier": False},
+        })
+        self.use_profile("snowflake")
+
+        self.run_dbt(["seed"])
+        self.run_dbt()
+
+        self.assertTablesEqual('"seed"', '"view_model"')
+        self.assertTablesEqual('"seed"', '"incremental"')
+        self.assertTablesEqual('"seed"', '"materialized"')
+
+        self.use_default_project({
+            "data-paths": [self.dir("seed-update")],
+            "quoting": {"identifier": False},
+        })
+        self.run_dbt(["seed"])
+        self.run_dbt()
+
+        self.assertTablesEqual('"seed"', '"view_model"')
+        self.assertTablesEqual('"seed"', '"incremental"')
+        self.assertTablesEqual('"seed"', '"materialized"')
