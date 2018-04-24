@@ -59,7 +59,7 @@
   {% if non_destructive_mode -%}
     -- noop
   {%- else -%}
-    {{ drop_relation_if_exists(target_relation) }}
+    {{ drop_relation_if_exists(old_relation) }}
     {{ adapter.rename_relation(intermediate_relation, target_relation) }}
   {%- endif %}
 
