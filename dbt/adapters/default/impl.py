@@ -305,25 +305,41 @@ class DefaultAdapter(object):
             '`list_relations` is not implemented for this adapter!')
 
     @classmethod
-    def get_relation(cls, profile, project, schema=None, relations_list=None,
-                     model_name=None, **kwargs):
+    def _make_match_kwargs(cls, project, schema, identifier):
+        if identifier is not None and \
+           project.cfg.get('quoting', {}).get('identifier') is False:
+            identifier = identifier.lower()
+
+        if schema is not None and \
+           project.cfg.get('quoting', {}).get('schema') is False:
+            schema = schema.lower()
+
+        return filter_null_values({'identifier': identifier,
+                                   'schema': schema})
+
+    @classmethod
+    def get_relation(cls, profile, project, schema=None, identifier=None,
+                     relations_list=None, model_name=None):
         if schema is None and relations_list is None:
             raise dbt.exceptions.RuntimeException(
                 'get_relation needs either a schema to query, or a list '
                 'of relations to use')
 
         if relations_list is None:
-            relations_list = cls.list_relations(profile, project, schema, model_name)
+            relations_list = cls.list_relations(
+                profile, project, schema, model_name)
 
         matches = []
 
+        search = cls._make_match_kwargs(project, schema, identifier)
+
         for relation in relations_list:
-            if relation.matches(schema=schema, **kwargs):
+            if relation.matches(**search):
                 matches.append(relation)
 
         if len(matches) > 1:
             dbt.exceptions.get_relation_returned_multiple_results(
-                kwargs, matches)
+                {'identifier': identifier, 'schema': schema}, matches)
 
         elif matches:
             return matches[0]
@@ -334,12 +350,18 @@ class DefaultAdapter(object):
     # SANE ANSI SQL DEFAULTS
     ###
     @classmethod
-    def get_create_schema_sql(cls, schema):
+    def get_create_schema_sql(cls, project, schema):
+        if project.cfg.get('quoting', {}).get('schema'):
+            schema = cls.quote(schema)
+
         return ('create schema if not exists {schema}'
                 .format(schema=schema))
 
     @classmethod
-    def get_drop_schema_sql(cls, schema):
+    def get_drop_schema_sql(cls, project, schema):
+        if project.cfg.get('quoting', {}).get('schema'):
+            schema = cls.quote(schema)
+
         return ('drop schema if exists {schema} cascade'
                 .format(schema=schema))
 
@@ -667,7 +689,7 @@ class DefaultAdapter(object):
     @classmethod
     def create_schema(cls, profile, project, schema, model_name=None):
         logger.debug('Creating schema "%s".', schema)
-        sql = cls.get_create_schema_sql(schema)
+        sql = cls.get_create_schema_sql(project, schema)
         res = cls.add_query(profile, sql, model_name)
 
         cls.commit_if_has_connection(profile, model_name)
@@ -677,7 +699,7 @@ class DefaultAdapter(object):
     @classmethod
     def drop_schema(cls, profile, project, schema, model_name=None):
         logger.debug('Dropping schema "%s".', schema)
-        sql = cls.get_drop_schema_sql(schema)
+        sql = cls.get_drop_schema_sql(project, schema)
         return cls.add_query(profile, sql, model_name)
 
     @classmethod

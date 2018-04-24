@@ -1,6 +1,8 @@
 from dbt.api import APIObject
 from dbt.utils import filter_null_values
 
+import dbt.exceptions
+
 
 class DefaultRelation(APIObject):
 
@@ -85,11 +87,20 @@ class DefaultRelation(APIObject):
             # nothing was passed in
             pass
 
+        exact_match = True
+        approximate_match = True
+
         for k, v in search.items():
             if self.get_path_part(k) != v:
-                return False
+                exact_match = False
 
-        return True
+            if self.get_path_part(k).lower() != v.lower():
+                approximate_match = False
+
+        if approximate_match and not exact_match:
+            dbt.exceptions.approximate_relation_match(search, self)
+
+        return exact_match
 
     def get_path_part(self, part):
         return self.path.get(part)

@@ -14,6 +14,7 @@ import dbt.exceptions
 from dbt.adapters.postgres import PostgresAdapter
 from dbt.adapters.snowflake.relation import SnowflakeRelation
 from dbt.logger import GLOBAL_LOGGER as logger
+from dbt.utils import filter_null_values
 
 
 class SnowflakeAdapter(PostgresAdapter):
@@ -105,7 +106,7 @@ class SnowflakeAdapter(PostgresAdapter):
         return result
 
     @classmethod
-    def list_relations(cls, profile, schema, model_name=None):
+    def list_relations(cls, profile, project, schema, model_name=None):
         sql = """
         select
           table_name as name, table_schema as schema, table_type as type
@@ -135,34 +136,7 @@ class SnowflakeAdapter(PostgresAdapter):
                 for (name, _schema, type) in results]
 
     @classmethod
-    def query_for_existing(cls, profile, schemas, model_name=None):
-        if not isinstance(schemas, (list, tuple)):
-            schemas = [schemas]
-
-        schemas = ["upper('{}')".format(schema) for schema in schemas]
-        schema_list = ",".join(schemas)
-
-        sql = """
-        select table_name as name, table_type as type
-        from information_schema.tables
-        where upper(table_schema) in ({schema_list})
-        """.format(schema_list=schema_list).strip()  # noqa
-
-        _, cursor = cls.add_query(profile, sql, model_name, auto_begin=False)
-        results = cursor.fetchall()
-
-        relation_type_lookup = {
-            'BASE TABLE': 'table',
-            'VIEW': 'view'
-        }
-
-        existing = [(name, relation_type_lookup.get(relation_type))
-                    for (name, relation_type) in results]
-
-        return dict(existing)
-
-    @classmethod
-    def rename_relation(cls, profile, from_relation,
+    def rename_relation(cls, profile, project, from_relation,
                         to_relation, model_name=None):
         sql = 'alter table {} rename to {}'.format(
             from_relation, to_relation)
@@ -174,17 +148,7 @@ class SnowflakeAdapter(PostgresAdapter):
         return cls.add_query(profile, 'BEGIN', name, auto_begin=False)
 
     @classmethod
-    def create_schema(cls, profile, schema, model_name=None):
-        logger.debug('Creating schema "%s".', schema)
-        sql = cls.get_create_schema_sql(schema)
-        res = cls.add_query(profile, sql, model_name)
-
-        cls.commit_if_has_connection(profile, model_name)
-
-        return res
-
-    @classmethod
-    def get_existing_schemas(cls, profile, model_name=None):
+    def get_existing_schemas(cls, profile, project, model_name=None):
         sql = "select distinct schema_name from information_schema.schemata"
 
         connection, cursor = cls.add_query(profile, sql, model_name,
@@ -194,7 +158,7 @@ class SnowflakeAdapter(PostgresAdapter):
         return [row[0] for row in results]
 
     @classmethod
-    def check_schema_exists(cls, profile, schema, model_name=None):
+    def check_schema_exists(cls, profile, project, schema, model_name=None):
         sql = """
         select count(*)
         from information_schema.schemata
@@ -253,6 +217,19 @@ class SnowflakeAdapter(PostgresAdapter):
                     "Provided SQL:\n{}".format(model_name, sql))
 
         return connection, cursor
+
+    @classmethod
+    def _make_match_kwargs(cls, project, schema, identifier):
+        if identifier is not None and \
+           project.cfg.get('quoting', {}).get('identifier') is False:
+            identifier = identifier.upper()
+
+        if schema is not None and \
+           project.cfg.get('quoting', {}).get('schema') is False:
+            schema = schema.upper()
+
+        return filter_null_values({'identifier': identifier,
+                                   'schema': schema})
 
     @classmethod
     def cancel_connection(cls, profile, connection):

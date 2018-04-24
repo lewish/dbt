@@ -305,12 +305,26 @@ def raise_dep_not_found(node, node_description, required_pkg):
         '`dbt deps`.'.format(node_description, required_pkg), node=node)
 
 
-def get_relation_returned_multiple_results(kwargs, matches):
+def multiple_matching_relations(kwargs, matches):
     raise_compiler_error(
         'get_relation returned more than one relation with the given args. '
         'Please specify a database or schema to narrow down the result set.'
         '\n{}\n\n{}'
         .format(kwargs, matches))
+
+
+def approximate_relation_match(search, relation):
+    raise_compiler_error(
+        'When searching for a relation, dbt found an approximate match. '
+        'Instead of guessing which relation to use, dbt will abort. '
+        'Please delete the approximate match, or rename it to match the '
+        'identifier dbt is trying to edit.'
+        '\nSearch: {}\nRelation: {}'
+        .format(search, relation))
+
+
+def get_relation_returned_multiple_results(kwargs, matches):
+    multiple_matching_relations(kwargs, matches)
 
 
 def raise_duplicate_resource_name(node_1, node_2):
