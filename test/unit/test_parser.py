@@ -57,6 +57,7 @@ class ParserTest(unittest.TestCase):
             'post-hook': [],
             'pre-hook': [],
             'vars': {},
+            'quoting': {},
             'column_types': {},
         }
 
@@ -66,6 +67,7 @@ class ParserTest(unittest.TestCase):
             'post-hook': [],
             'pre-hook': [],
             'vars': {},
+            'quoting': {},
             'column_types': {},
         }
 
