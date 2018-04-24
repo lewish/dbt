@@ -10,11 +10,11 @@ class TestTimezones(DBTIntegrationTest):
 
     @property
     def schema(self):
-        return "timezones_026"
+        return "timezones_025"
 
     @property
     def models(self):
-        return "test/integration/026_timezones_test/models"
+        return "test/integration/025_timezones_test/models"
 
     @property
     def profile_config(self):

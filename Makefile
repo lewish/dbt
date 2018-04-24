@@ -1,11 +1,9 @@
-.PHONY: install pep8 test test-unit test-integration
+.PHONY: install test test-unit test-integration
+
+changed_tests := `git status --porcelain | grep '^\(M\| M\|A\| A\)' | awk '{ print $$2 }' | grep '\/test_[a-zA-Z_\-\.]\+.py'`
 
 install:
 	pip install -e .
-
-pep8:
-	@echo "PEP8 test run starting..."
-	@time docker-compose run test tox -e pep8
 
 test:
 	@echo "Full test run starting..."
@@ -18,3 +16,9 @@ test-unit:
 test-integration:
 	@echo "Integration test run starting..."
 	@time docker-compose run test tox -e integration-postgres-py27,integration-postgres-py36,integration-snowflake-py27,integration-snowflake-py36,integration-bigquery-py27,integration-bigquery-py36
+
+test-new:
+	@echo "Test run starting..."
+	@echo "Changed test files:"
+	@echo "${changed_tests}"
+	@docker-compose run test /usr/src/app/test/runner.sh ${changed_tests}

@@ -23,7 +23,7 @@ class TestSimpleCycle(DBTIntegrationTest):
         with self.assertRaisesRegexp(Exception, message):
             self.run_dbt(["run"])
 
-class TestComplexCylce(DBTIntegrationTest):
+class TestComplexCycle(DBTIntegrationTest):
 
     def setUp(self):
         DBTIntegrationTest.setUp(self)

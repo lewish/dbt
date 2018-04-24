@@ -32,17 +32,11 @@ class Linker(object):
         return self.graph.node[node]
 
     def find_cycles(self):
-        try:
-            # We create our edges backwards, so it's necessary to "reverse"
-            # the check for cycles.
-            cycles = nx.algorithms.find_cycle(self.graph,
-                                              orientation='reverse')
-        except nx.exception.NetworkXNoCycle:
-            return None
+        cycles = list(nx.simple_cycles(self.graph))
 
-        if cycles:
-            cycle_nodes = [c[0] for c in cycles]
-            cycle_nodes += [cycle_nodes[0]]
+        if len(cycles) > 0:
+            cycle_nodes = cycles[0]
+            cycle_nodes.append(cycle_nodes[0])
             return " --> ".join(cycle_nodes)
 
         return None
