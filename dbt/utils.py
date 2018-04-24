@@ -26,6 +26,7 @@ DBTConfigKeys = [
     'pre-hook',
     'post-hook',
     'vars',
+    'column_types',
     'bind',
 ]
 
@@ -87,7 +88,7 @@ def model_immediate_name(model, non_destructive):
 
 def find_refable_by_name(flat_graph, target_name, target_package):
     return find_by_name(flat_graph, target_name, target_package,
-                        'nodes', [NodeType.Model, NodeType.Seed])
+                        'nodes', NodeType.refable())
 
 
 def find_macro_by_name(flat_graph, target_name, target_package):

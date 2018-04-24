@@ -40,6 +40,7 @@ class DefaultAdapter(object):
 
         # just deprecated. going away in a future release
         "quote_schema_and_table",
+<<<<<<< HEAD:dbt/adapters/default/impl.py
 
         # versions of adapter functions that take / return Relations
         "list_relations",
@@ -50,6 +51,10 @@ class DefaultAdapter(object):
 
         "execute",
         "add_query",
+=======
+        "execute",
+        "convert_type"
+>>>>>>> 5fefbbd21494f50952c03fa0025325b4aaab249f:dbt/adapters/default.py
     ]
 
     raw_functions = [
@@ -121,22 +126,6 @@ class DefaultAdapter(object):
     def cancel_connection(cls, project, connection):
         raise dbt.exceptions.NotImplementedException(
             '`cancel_connection` is not implemented for this adapter!')
-
-    @classmethod
-    def create_csv_table(cls, profile, schema, table_name, agate_table):
-        raise dbt.exceptions.NotImplementedException(
-            '`create_csv_table` is not implemented for this adapter!')
-
-    @classmethod
-    def reset_csv_table(cls, profile, schema, table_name, agate_table,
-                        full_refresh=False):
-        raise dbt.exceptions.NotImplementedException(
-            '`reset_csv_table` is not implemented for this adapter!')
-
-    @classmethod
-    def load_csv_rows(cls, profile, schema, table_name, agate_table):
-        raise dbt.exceptions.NotImplementedException(
-            '`load_csv_rows` is not implemented for this adapter!')
 
     ###
     # FUNCTIONS THAT SHOULD BE ABSTRACT
@@ -708,29 +697,6 @@ class DefaultAdapter(object):
                               cls.quote(table))
 
     @classmethod
-    def render_relation(cls, profile, schema, name):
-        return '{}.{}'.format(schema, name)
-
-    @classmethod
-    def handle_csv_table(cls, profile, schema, table_name, agate_table,
-                         full_refresh=False):
-        relation = cls.get_relation(
-            profile, schema=schema, identifier=table_name)
-
-        if relation is None:
-            cls.create_csv_table(profile, schema, table_name, agate_table)
-
-        elif relation.is_table or full_refresh:
-            cls.reset_csv_table(profile, schema, table_name, agate_table,
-                                full_refresh=full_refresh)
-
-        else:
-            dbt.exceptions.relation_wrong_type(relation, 'table')
-
-        cls.load_csv_rows(profile, schema, table_name, agate_table)
-        cls.commit_if_has_connection(profile, None)
-
-    @classmethod
     def convert_text_type(cls, agate_table, col_idx):
         raise dbt.exceptions.NotImplementedException(
             '`convert_text_type` is not implemented for this adapter!')
@@ -759,6 +725,10 @@ class DefaultAdapter(object):
     def convert_time_type(cls, agate_table, col_idx):
         raise dbt.exceptions.NotImplementedException(
             '`convert_time_type` is not implemented for this adapter!')
+
+    @classmethod
+    def convert_type(cls, profiel, agate_table, col_idx, model_name):
+        return cls.convert_agate_type(agate_table, col_idx)
 
     @classmethod
     def convert_agate_type(cls, agate_table, col_idx):

@@ -79,7 +79,7 @@ class BaseRunner(object):
 
     @classmethod
     def is_refable(cls, node):
-        return node.get('resource_type') in [NodeType.Model, NodeType.Seed]
+        return node.get('resource_type') in NodeType.refable()
 
     @classmethod
     def is_ephemeral(cls, node):
@@ -504,20 +504,6 @@ class SeedRunner(ModelRunner):
         description = self.describe_node()
         dbt.ui.printer.print_start_line(description, self.node_index,
                                         self.num_nodes)
-
-    def execute(self, compiled_node, flat_graph):
-        schema = compiled_node["schema"]
-        table_name = compiled_node["name"]
-        table = compiled_node["agate_table"]
-        self.adapter.handle_csv_table(self.profile, schema, table_name, table,
-                                      full_refresh=dbt.flags.FULL_REFRESH)
-
-        if dbt.flags.FULL_REFRESH:
-            status = 'CREATE {}'.format(len(table.rows))
-        else:
-            status = 'INSERT {}'.format(len(table.rows))
-
-        return RunModelResult(compiled_node, status=status)
 
     def compile(self, flat_graph):
         return self.node

@@ -12,7 +12,7 @@ class SourceConfig(object):
     ConfigKeys = DBTConfigKeys
 
     AppendListFields = ['pre-hook', 'post-hook']
-    ExtendDictFields = ['vars']
+    ExtendDictFields = ['vars', 'column_types']
     ClobberFields = [
         'schema',
         'enabled',
@@ -68,7 +68,12 @@ class SourceConfig(object):
            - active project config
            - in-model config
         """
+
         defaults = {"enabled": True, "materialized": "view"}
+
+        if self.node_type == NodeType.Seed:
+            defaults['materialized'] = 'seed'
+
         active_config = self.load_config_from_active_project()
 
         if self.active_project['name'] == self.own_project['name']:

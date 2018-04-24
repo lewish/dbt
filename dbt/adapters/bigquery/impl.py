@@ -37,6 +37,7 @@ class BigQueryAdapter(PostgresAdapter):
         "make_date_partitioned_table",
         "already_exists",
         "expand_target_column_types",
+        "load_dataframe",
 
         # versions of adapter functions that take / return Relations
         "list_relations",
@@ -504,36 +505,32 @@ class BigQueryAdapter(PostgresAdapter):
         return "datetime"
 
     @classmethod
-    def create_csv_table(cls, profile, schema, table_name, agate_table):
-        pass
-
-    @classmethod
-    def reset_csv_table(cls, profile, schema, table_name, agate_table,
-                        full_refresh=False, model_name=None):
-        relation = cls.Relation.create(schema=schema,
-                                       identifier=table_name)
-
-        cls.drop_relation(profile, relation, model_name)
-
-    @classmethod
-    def _agate_to_schema(cls, agate_table):
+    def _agate_to_schema(cls, agate_table, column_override):
         bq_schema = []
         for idx, col_name in enumerate(agate_table.column_names):
-            type_ = cls.convert_agate_type(agate_table, idx)
+            inferred_type = cls.convert_agate_type(agate_table, idx)
+            type_ = column_override.get(col_name, inferred_type)
             bq_schema.append(
                 google.cloud.bigquery.SchemaField(col_name, type_))
         return bq_schema
 
     @classmethod
-    def load_csv_rows(cls, profile, schema, table_name, agate_table):
-        bq_schema = cls._agate_to_schema(agate_table)
+    def load_dataframe(cls, profile, schema, table_name, agate_table,
+                       column_override, model_name=None):
+        bq_schema = cls._agate_to_schema(agate_table, column_override)
         dataset = cls.get_dataset(profile, schema, None)
-        table = dataset.table(table_name, schema=bq_schema)
+        table = dataset.table(table_name)
         conn = cls.get_connection(profile, None)
         client = conn.get('handle')
+
+        load_config = google.cloud.bigquery.LoadJobConfig()
+        load_config.skip_leading_rows = 1
+        load_config.schema = bq_schema
+
         with open(agate_table.original_abspath, "rb") as f:
-            job = table.upload_from_file(f, "CSV", rewind=True,
-                                         client=client, skip_leading_rows=1)
+            job = client.load_table_from_file(f, table, rewind=True,
+                                              job_config=load_config)
+
         with cls.exception_handler(profile, "LOAD TABLE"):
             cls.poll_until_job_completes(job, cls.get_timeout(conn))
 
