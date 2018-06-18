@@ -16,11 +16,7 @@ from dbt.schema import Column
 from dbt.utils import filter_null_values
 
 from dbt.adapters.default.relation import DefaultRelation
-
-lock = multiprocessing.Lock()
-connections_in_use = {}
-connections_available = []
-
+from dbt.adapters.connection_manager import ConnectionManager
 
 class DefaultAdapter(object):
 
@@ -382,15 +378,15 @@ class DefaultAdapter(object):
 
     @classmethod
     def get_connection(cls, profile, name=None, recache_if_missing=True):
-        global connections_in_use
+        pool = ConnectionManager.get_pool(profile)
 
         if name is None:
             # if a name isn't specified, we'll re-use a single handle
             # named 'master'
             name = 'master'
 
-        if connections_in_use.get(name):
-            return connections_in_use.get(name)
+        if pool.connections_in_use.get(name):
+            return pool.connections_in_use.get(name)
 
         if not recache_if_missing:
             raise dbt.exceptions.InternalException(
@@ -401,15 +397,15 @@ class DefaultAdapter(object):
                      .format(cls.type(), name))
 
         connection = cls.acquire_connection(profile, name)
-        connections_in_use[name] = connection
+        pool.connections_in_use[name] = connection
 
         return cls.get_connection(profile, name)
 
     @classmethod
     def cancel_open_connections(cls, profile):
-        global connections_in_use
+        pool = ConnectionManager.get_pool(profile)
 
-        for name, connection in connections_in_use.items():
+        for name, connection in pool.connections_in_use.items():
             if name == 'master':
                 continue
 
@@ -417,14 +413,14 @@ class DefaultAdapter(object):
             yield name
 
     @classmethod
-    def total_connections_allocated(cls):
-        global connections_in_use, connections_available
+    def total_connections_allocated(cls, profile):
+        pool = ConnectionManager.get_pool(profile)
 
-        return len(connections_in_use) + len(connections_available)
+        return len(pool.connections_in_use) + len(pool.connections_available)
 
     @classmethod
     def acquire_connection(cls, profile, name):
-        global connections_available, lock
+        pool = ConnectionManager.get_pool(profile)
 
         # we add a magic number, 2 because there are overhead connections,
         # one for pre- and post-run hooks and other misc operations that occur
@@ -432,12 +428,12 @@ class DefaultAdapter(object):
         max_connections = profile.get('threads', 1) + 2
 
         try:
-            lock.acquire()
-            num_allocated = cls.total_connections_allocated()
+            pool.lock.acquire()
+            num_allocated = cls.total_connections_allocated(profile)
 
-            if len(connections_available) > 0:
+            if len(pool.connections_available) > 0:
                 logger.debug('Re-using an available connection from the pool.')
-                to_return = connections_available.pop()
+                to_return = pool.connections_available.pop()
                 to_return['name'] = name
                 return to_return
 
@@ -469,43 +465,43 @@ class DefaultAdapter(object):
 
             return cls.open_connection(result)
         finally:
-            lock.release()
+            pool.lock.release()
 
     @classmethod
     def release_connection(cls, profile, name):
-        global connections_in_use, connections_available, lock
+        pool = ConnectionManager.get_pool(profile)
 
-        if connections_in_use.get(name) is None:
+        if pool.connections_in_use.get(name) is None:
             return
 
         to_release = cls.get_connection(profile, name,
                                         recache_if_missing=False)
 
         try:
-            lock.acquire()
+            pool.lock.acquire()
 
             if to_release.get('state') == 'open':
 
                 if to_release.get('transaction_open') is True:
-                    cls.rollback(to_release)
+                    cls.rollback(profile, to_release)
 
                 to_release['name'] = None
-                connections_available.append(to_release)
+                pool.connections_available.append(to_release)
             else:
                 cls.close(to_release)
 
-            del connections_in_use[name]
+            del pool.connections_in_use[name]
         finally:
-            lock.release()
+            pool.lock.release()
 
     @classmethod
-    def cleanup_connections(cls):
-        global connections_in_use, connections_available, lock
+    def cleanup_connections(cls, profile):
+        pool = ConnectionManager.get_pool(profile)
 
         try:
-            lock.acquire()
+            pool.lock.acquire()
 
-            for name, connection in connections_in_use.items():
+            for name, connection in pool.connections_in_use.items():
                 if connection.get('state') != 'closed':
                     logger.debug("Connection '{}' was left open."
                                  .format(name))
@@ -513,16 +509,16 @@ class DefaultAdapter(object):
                     logger.debug("Connection '{}' was properly closed."
                                  .format(name))
 
-            conns_in_use = list(connections_in_use.values())
-            for conn in conns_in_use + connections_available:
+            conns_in_use = list(pool.connections_in_use.values())
+            for conn in conns_in_use + pool.connections_available:
                 cls.close(conn)
 
             # garbage collect these connections
-            connections_in_use = {}
-            connections_available = []
+            pool.connections_in_use = {}
+            pool.connections_available = []
 
         finally:
-            lock.release()
+            pool.lock.release()
 
     @classmethod
     def reload(cls, connection):
@@ -539,7 +535,7 @@ class DefaultAdapter(object):
 
     @classmethod
     def begin(cls, profile, name='master'):
-        global connections_in_use
+        pool = ConnectionManager.get_pool(profile)
         connection = cls.get_connection(profile, name)
 
         if dbt.flags.STRICT_MODE:
@@ -553,18 +549,18 @@ class DefaultAdapter(object):
         cls.add_begin_query(profile, name)
 
         connection['transaction_open'] = True
-        connections_in_use[name] = connection
+        pool.connections_in_use[name] = connection
 
         return connection
 
     @classmethod
     def commit_if_has_connection(cls, profile, name):
-        global connections_in_use
+        pool = ConnectionManager.get_pool(profile)
 
         if name is None:
             name = 'master'
 
-        if connections_in_use.get(name) is None:
+        if pool.connections_in_use.get(name) is None:
             return
 
         connection = cls.get_connection(profile, name, False)
@@ -573,7 +569,7 @@ class DefaultAdapter(object):
 
     @classmethod
     def commit(cls, profile, connection):
-        global connections_in_use
+        pool = ConnectionManager.get_pool(profile)
 
         if dbt.flags.STRICT_MODE:
             validate_connection(connection)
@@ -589,12 +585,13 @@ class DefaultAdapter(object):
         cls.add_commit_query(profile, connection.get('name'))
 
         connection['transaction_open'] = False
-        connections_in_use[connection.get('name')] = connection
+        pool.connections_in_use[connection.get('name')] = connection
 
         return connection
 
     @classmethod
-    def rollback(cls, connection):
+    def rollback(cls, profile, connection):
+        pool = ConnectionManager.get_pool(profile)
         if dbt.flags.STRICT_MODE:
             validate_connection(connection)
 
@@ -609,7 +606,7 @@ class DefaultAdapter(object):
         connection.get('handle').rollback()
 
         connection['transaction_open'] = False
-        connections_in_use[connection.get('name')] = connection
+        pool.connections_in_use[connection.get('name')] = connection
 
         return connection
 

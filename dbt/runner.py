@@ -206,7 +206,7 @@ class RunManager(object):
             Runner.after_hooks(self.project, adapter, res, flat_graph, elapsed)
 
         finally:
-            adapter.cleanup_connections()
+            adapter.cleanup_connections(profile)
 
         return res
 
