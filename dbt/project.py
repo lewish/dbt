@@ -23,6 +23,7 @@ default_project_cfg = {
     'data-paths': ['data'],
     'test-paths': ['test'],
     'target-path': 'target',
+    'log-path': 'logs',
     'clean-targets': ['target'],
     'outputs': {'default': {}},
     'target': 'default',
@@ -99,6 +100,16 @@ class Project(object):
 
         if self.cfg['models'].get('vars') is None:
             self.cfg['models']['vars'] = {}
+
+        if self.cfg.get('log-path') is not None:
+            self.cfg['log-path'] = dbt.clients.system.resolve_path_from_base(
+                self.cfg.get('log-path'),
+                self.cfg.get('project-root'))
+
+        if self.cfg.get('target-path') is not None:
+            self.cfg['target-path'] = dbt.clients.system.resolve_path_from_base(
+                self.cfg.get('target-path'),
+                self.cfg.get('project-root'))
 
         global_vars = dbt.utils.parse_cli_vars(getattr(args, 'vars', '{}'))
         self.cfg['cli_vars'] = global_vars
