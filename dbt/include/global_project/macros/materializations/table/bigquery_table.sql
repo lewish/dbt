@@ -73,6 +73,6 @@
     {% endcall -%}
   {% endif %}
 
-  {{ run_bigquery_hooks(pre_hooks) }}
+  {{ run_bigquery_hooks(post_hooks) }}
 
 {% endmaterialization %}
