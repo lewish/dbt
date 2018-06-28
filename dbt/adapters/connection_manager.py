@@ -1,4 +1,5 @@
 import multiprocessing
+import traceback
 
 
 class ConnectionPool:
@@ -23,20 +24,11 @@ class ConnectionManager:
 
     @staticmethod
     def get_pool_key(profile):
-        if profile.get('type') == 'bigquery':
-            return 'bigquery|' + profile.get('project')
-        elif profile.get('type') == 'redshift' or profile.get('type') == 'postgres':
-            return 'postgres|{host}|{port}|{user}|{dbname}'.format(
-                host=profile.get('host'), port=profile.get('port'),
-                user=profile.get('user'),
-                dbname={profile.get('dbname')})
-        elif profile.get('type') == 'snowflake':
-            return 'snowflake|{account}|{database}|{user}|{warehouse}|${schema}'.format(
-                account=profile.get('account'),
-                database=profile.get('database'),
-                user=profile.get('user'),
-                warehouse=profile.get('warehouse'),
-                schema=profile.get('schema')
-            )
-        else:
-            raise Exception('Invalid profile type: {}'.format(profile.get('type')))
+        # Just return one big hash of all the known relevant profile properties, even though many are None.
+        # The profile type appears to get lost in on certain code paths.
+        return "|".join([str(value) if value else "" for value in [profile.get('project'),
+                                                                   profile.get('host'), profile.get('port'),
+                                                                   profile.get('user'), profile.get('dbname'),
+                                                                   profile.get('account'), profile.get('database'),
+                                                                   profile.get('warehouse'),
+                                                                   profile.get('schema')]])
