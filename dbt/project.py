@@ -111,6 +111,11 @@ class Project(object):
                 self.cfg.get('target-path'),
                 self.cfg.get('project-root'))
 
+        if self.cfg.get('modules-path') is not None:
+            self.cfg['modules-path'] = dbt.clients.system.resolve_path_from_base(
+                self.cfg.get('modules-path'),
+                self.cfg.get('project-root'))
+
         global_vars = dbt.utils.parse_cli_vars(getattr(args, 'vars', '{}'))
         self.cfg['cli_vars'] = global_vars
 
