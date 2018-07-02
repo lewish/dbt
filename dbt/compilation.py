@@ -300,7 +300,11 @@ class Compiler(object):
                 linked_graph.get('macros').items()):
             stats[node.get('resource_type')] += 1
 
-        self.write_graph_file(linker)
+        # TODO: Handle exceptions gracefully here, as this is failing for some projects and is not strictly required for compilation.
+        try:
+            self.write_graph_file(linker)
+        except Exception:
+            pass
         print_compile_stats(stats)
 
         return linked_graph, linker
