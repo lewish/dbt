@@ -251,6 +251,15 @@ def write(node, target_path, subdirectory):
     return fn
 
 
+def append(node, target_path, subdirectory):
+    def fn(payload):
+        dbt.writer.append_node(
+            node, target_path, subdirectory, payload)
+        return ''
+
+    return fn
+
+
 def render(context, node):
     def fn(string):
         return dbt.clients.jinja.get_rendered(string, context, node)
@@ -398,6 +407,7 @@ def generate(model, project_cfg, flat_graph, provider=None):
     context = _add_macros(context, model, flat_graph)
 
     context["write"] = write(model, project_cfg.get('target-path'), 'run')
+    context["write_debug"] = append(model, project_cfg.get('target-path'), 'debug')
     context["render"] = render(context, model)
     context["var"] = Var(model, context=context, overrides=cli_var_overrides)
     context['context'] = context

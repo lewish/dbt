@@ -9,6 +9,9 @@ import dbt.ui.printer
 
 from dbt.task.base_task import RunnableTask
 
+import shutil
+import os
+
 
 class RunTask(RunnableTask):
     def run(self):
@@ -22,6 +25,9 @@ class RunTask(RunnableTask):
             "resource_types": [NodeType.Model],
             "tags": set()
         }
+
+        # Clean out the target-path/debug directory as we write to files in it with append.
+        shutil.rmtree(os.path.join(self.project['target-path'], "debug"), ignore_errors=True)
 
         results = runner.run(query, ModelRunner)
 

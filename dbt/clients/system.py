@@ -116,6 +116,11 @@ def write_file(path, contents=''):
 
     return True
 
+def append_file(path, contents=''):
+    make_directory(os.path.dirname(path))
+    dbt.compat.append_file(path, contents)
+
+    return True
 
 def _windows_rmdir_readonly(func, path, exc):
     exception_val = exc[1]

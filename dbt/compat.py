@@ -43,3 +43,12 @@ def write_file(path, s):
     else:
         with open(path, 'w') as f:
             return f.write(to_string(s))
+
+
+def append_file(path, s):
+    if WHICH_PYTHON == 2:
+        with codecs.open(path, 'a', encoding='utf-8') as f:
+            return f.write(to_string(s))
+    else:
+        with open(path, 'a') as f:
+            return f.write(to_string(s))

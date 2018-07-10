@@ -1,7 +1,7 @@
 {% macro statement(name=None, fetch_result=False, auto_begin=True) -%}
+  {%- set sql = render(caller()) -%}
+  {{ write_debug(sql + "\n-- END_STATEMENT\n") }}
   {%- if execute: -%}
-    {%- set sql = render(caller()) -%}
-
     {%- if name == 'main' -%}
       {{ log('Writing runtime SQL for node "{}"'.format(model['unique_id'])) }}
       {{ write(sql) }}
