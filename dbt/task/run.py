@@ -23,7 +23,7 @@ class RunTask(RunnableTask):
             "include": self.args.models,
             "exclude": self.args.exclude,
             "resource_types": [NodeType.Model],
-            "tags": set()
+            "tags": []
         }
 
         # Clean out the target-path/debug directory as we write to files in it with append.

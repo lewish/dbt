@@ -69,5 +69,7 @@ target/
 # Sublime Text
 *.sublime-*
 
+.python-version
+
 #PyCharm/IntelliJ
 .idea/
