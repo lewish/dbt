@@ -33,6 +33,8 @@
     {%- set old_relation = none -%}
   {%- endif %}
 
+  {{ run_bigquery_hooks(pre_hooks) }}
+
   {% set source_sql -%}
      {#-- wrap sql in parens to make it a subquery --#}
      (
@@ -54,5 +56,7 @@
        {{ get_merge_sql(target_relation, source_sql, unique_key, dest_columns) }}
      {% endcall %}
   {%- endif %}
+
+  {{ run_bigquery_hooks(post_hooks) }}
 
 {%- endmaterialization %}
