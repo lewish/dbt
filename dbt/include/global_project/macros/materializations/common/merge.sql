@@ -11,7 +11,7 @@
     using {{ source }} as DBT_SOURCE
 
     {% if unique_key %}
-        on SOURCE.{{ unique_key }} = DBT_DEST.{{ unique_key }}
+        on DBT_SOURCE.{{ unique_key }} = DBT_DEST.{{ unique_key }}
     {% else %}
         on FALSE
     {% endif %}
